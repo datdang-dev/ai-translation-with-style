@@ -1,0 +1,23 @@
+classDiagram
+    class APIKeyManager {
+        -List~Dict~ keys
+        -int current_index
+        -int max_retries
+        -float backoff_base
+        -int max_requests_per_minute
+        -asyncio.Lock lock
+        +get_next_available_key() Dict?
+        +mark_key_status(key:str, status:str)
+        +get_active_key_count() int
+        +get_all_keys_status() List~Dict~
+        -_rotate_index()
+    }
+
+    class KeyStatus {
+        <<enumeration>>
+        ACTIVE
+        RATE_LIMITED
+        ERROR
+    }
+
+    APIKeyManager --> KeyStatus

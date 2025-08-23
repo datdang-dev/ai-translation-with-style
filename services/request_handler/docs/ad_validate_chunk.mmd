@@ -1,0 +1,5 @@
+flowchart TD
+    A[Start _is_chunk_standardized] --> B[Check required fields: id, content]
+    B --> C{All fields exist?}
+    C -- Yes --> D[Return True]
+    C -- No --> E[Return False]

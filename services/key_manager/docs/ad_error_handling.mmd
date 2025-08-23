@@ -1,0 +1,14 @@
+flowchart TD
+    %% =====================
+    %% report_key_error(key, error_code)
+    %% =====================
+    H1[Start_report_key_error] --> I1[Find key in list]
+    I1 --> J1{rate_limited}
+    J1 -- Yes --> K1[Increment retry_count] --> L1{retry_count_exceeded}
+    L1 -- Yes --> M1[Set status ERROR] --> T
+    L1 -- No --> O1[Calculate backoff next_retry_time] --> T
+    J1 -- No --> P1{active}
+    P1 -- Yes --> Q1[Reset retry_count and next_retry_time] --> T
+    P1 -- No --> T
+
+    T@{ shape: summary}

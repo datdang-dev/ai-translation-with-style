@@ -1,0 +1,17 @@
+flowchart TD
+    A[Start handle_request] --> B{Is chunk standardized?}
+    B -- No --> C[Log error, return CHUNK_MALFORMED]
+    B -- Yes --> D[Set retry_count = 0]
+    D --> E[Get next available key from KeyManager]
+    E --> F{Key available?}
+    F -- No --> G[Log error, return ERR_LIMITED_ALL_KEYS]
+    F -- Yes --> H[Send request via API client]
+    H --> I{Response status 200?}
+    I -- Yes --> J[Log success, return ERR_NONE, response]
+    I -- No --> K[Report key error to KeyManager]
+    K --> L[Increment retry_count]
+    L --> M[Calculate backoff time]
+    M --> N[Sleep for backoff time]
+    N --> O{retry_count > max_retries?}
+    O -- Yes --> P[Return ERR_RETRY_MAX_EXCEEDED]
+    O -- No --> E

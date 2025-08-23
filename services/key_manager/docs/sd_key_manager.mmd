@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant Task as RequestHandler/Task
+    participant KM as APIKeyManager
+
+    Task->>KM: get_next_available_key()
+    activate KM
+    KM-->>Task: return key if ACTIVE + quota ok
+    deactivate KM
+
+    alt Error occurs (429, 5xx, etc.)
+        Task->>KM: report_key_error(key, error_code)
+        activate KM
+        KM-->>Task: update key status + backoff
+        deactivate KM
+    end
+
+    alt Retry needed
+        Task->>KM: get_next_available_key()
+        activate KM
+        KM-->>Task: next available key
+        deactivate KM
+    end

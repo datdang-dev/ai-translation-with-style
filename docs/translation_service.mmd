@@ -1,0 +1,108 @@
+---
+config:
+  flowchart:
+    curve: monotoneX
+    padding: 20
+    nodeSpacing: 20
+    rankSpacing: 50
+    useMaxWidth: true
+    htmlLabels: true
+  layout: dagre-left-right
+  theme: dark
+---
+flowchart TB
+
+    %% [$ARCH KEY_MANAGEMENT] [$ARCH REQUEST_HANDLING]
+    Title["Architecture Diagram: Translation Service - API Key Management and Request Handling"]
+    
+    A["Start Translation Request"] --> B["Receive Chunk (Pre-validated)"]
+    B --> D["Initialize Retry Counter"]
+    D --> E["Get Next Available API Key"]
+    E --> F{"Key Available and Quota OK?"}
+    F -- No --> Z["Exit & Log: ERR_LIMITED_ALL_KEYS (1002)"]
+    F -- Yes --> G["Prepare Request Data with Key"]
+    G --> H["Send Request to Model API"]
+    H --> I["Handle Streaming Response"]
+    I --> J{"Response Status Code?"}
+    
+    J -- 200 (Success) --> K["Parse & Validate Response"]
+    K --> L{"Response Valid?"}
+    L -- Yes --> Y["Exit & Log: ERR_NONE (0) - Success"]
+    L -- No --> M["Log Response Validation Error"]
+    M --> N["Increment Retry Counter"]
+    
+    J -- 429 (Rate Limit) --> O["Mark Key as RATE_LIMITED"]
+    O --> P["Apply Exponential Backoff"]
+    P --> Q{"Other Keys Available?"}
+    Q -- Yes --> E
+    Q -- No --> Z
+    
+    J -- 5xx (Server Error) --> R["Mark Key as RATE_LIMITED"]
+    R --> S["Apply Backoff Strategy"]
+    S --> T{"Retry Count < Max?"}
+    T -- Yes --> E
+    T -- No --> U["Exit & Log: ERR_RETRY_MAX_EXCEEDED (1003)"]
+    
+    J -- 4xx (Client Error) --> V["Log Client Error"]
+    V --> W["Mark Key as ERROR"]
+    W --> X2{"Other Keys Available?"}
+    X2 -- Yes --> E
+    X2 -- No --> Z
+    
+    N --> AA{"Retry Count < Max?"}
+    AA -- Yes --> E
+    AA -- No --> U
+    
+    Y --> END
+    Z --> END
+    U --> END
+
+    %% Node styling
+    F@{ shape: diam}
+    J@{ shape: diam}
+    L@{ shape: diam}
+    Q@{ shape: diam}
+    T@{ shape: diam}
+    X2@{ shape: diam}
+    AA@{ shape: diam}
+    END@{ shape: summary}
+    
+    %% Color coding
+    style A fill:#2b2b2b,stroke:#fff,color:#fff
+    style B fill:#333,stroke:#fff,color:#fff
+    style D fill:#555,stroke:#fff,color:#fff
+    style E fill:#666,stroke:#fff,color:#fff
+    style F fill:#777,stroke:#fff,color:#fff
+    style G fill:#888,stroke:#fff,color:#fff
+    style H fill:#999,stroke:#fff,color:#fff
+    style I fill:#aaa,stroke:#fff,color:#fff
+    style J fill:#222,stroke:#fff,color:#fff
+    style K fill:#111,stroke:#fff,color:#fff
+    style L fill:#333,stroke:#fff,color:#fff
+    style M fill:#0ff,stroke:#333,color:#000
+    style N fill:#0ff,stroke:#333,color:#000
+    style O fill:#fc0,stroke:#333,color:#000
+    style P fill:#fc0,stroke:#333,color:#000
+    style Q fill:#444,stroke:#fff,color:#fff
+    style R fill:#f90,stroke:#333,color:#000
+    style S fill:#f90,stroke:#333,color:#000
+    style T fill:#555,stroke:#fff,color:#fff
+    style U fill:#f66,stroke:#333,color:#000
+    style V fill:#f0f,stroke:#333,color:#000
+    style W fill:#f0f,stroke:#333,color:#000
+    style X2 fill:#666,stroke:#fff,color:#fff
+    style AA fill:#777,stroke:#fff,color:#fff
+    style Y fill:#0f0,stroke:#333,color:#000
+    style Z fill:#f66,stroke:#333,color:#000
+    style END fill:#888,stroke:#333,color:#000,font-weight:bold
+    style Title fill:#00C853,stroke:#fff,color:#fff,font-size:20px,font-weight:bold
+
+    %% Add legend
+    subgraph Legend ["Legend"]
+        L1["🟢 Success Path"]
+        L2["🟡 Rate Limit Handling"]
+        L3["🟠 Server Error Handling"]
+        L4["🔴 Error Exit Points"]
+        L5["🔵 Retry Logic"]
+        L6["📝 Note: Chunk validation handled by upstream service"]
+    end

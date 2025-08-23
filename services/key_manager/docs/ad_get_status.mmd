@@ -1,0 +1,11 @@
+flowchart TD
+    %% =====================
+    %% get_all_keys_status()
+    %% =====================
+    AC1[Start_get_all_keys_status] --> AD1[Iterate over keys list]
+    AD1 --> AE1[Format key info: key, status, retry_count, next_retry]
+    AE1 --> AF1{all keys processed?}
+    AF1 -- No --> AD1
+    AF1 -- Yes --> AG1[Return keys status list] --> AH1[End_get_all_keys_status] --> T
+
+    T@{ shape: summary}

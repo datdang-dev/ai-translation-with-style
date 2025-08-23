@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "game-translator"
+version = "0.1.0"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["services*"]
+
+[tool.pytest.ini_options]
+# Pytest sẽ tìm test trong tất cả subfolders tên utest/ hoặc itest/
+testpaths = ["services"]
+python_files = ["utest_*.py", "itest_*.py", "test_*.py"]
+python_classes = ["*Test*", "*test*"]
+python_functions = ["test_*", "utest_*", "itest_*"]

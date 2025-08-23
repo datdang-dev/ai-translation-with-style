@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant RH as RequestHandler
+    participant KM as APIKeyManager
+    participant API as ApiClient
+    participant LOG as Logger
+
+    RH->>LOG: info("Start translation chunk")
+    RH->>RH: _is_chunk_standardized(chunk)
+    alt chunk malformed
+        RH->>LOG: error("Malformed chunk")
+        RH-->>RH: return CHUNK_MALFORMED
+    else chunk valid
+        loop retry_count <= max_retries
+            RH->>KM: get_next_available_key()
+            alt no key
+                RH->>LOG: error("No available API key")
+                RH-->>RH: return ERR_LIMITED_ALL_KEYS
+            else key available
+                RH->>API: send_request(chunk, key)
+                alt status 200
+                    RH->>LOG: info("Translated successfully")
+                    RH-->>RH: return ERR_NONE, response.json()
+                else error response
+                    RH->>KM: report_key_error(key, status_code)
+                    RH->>asyncio: sleep(backoff)
+                end
+            end
+        end
+        RH-->>RH: return ERR_RETRY_MAX_EXCEEDED
+    end

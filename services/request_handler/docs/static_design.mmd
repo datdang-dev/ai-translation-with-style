@@ -1,0 +1,25 @@
+classDiagram
+    class RequestHandler {
+        +__init__(api_client, key_manager, logger, config)
+        +handle_request(chunk)
+        -_is_chunk_standardized(chunk)
+        -retry_count
+    }
+
+    class APIKeyManager {
+        +get_next_available_key()
+        +report_key_error(key, error_code)
+    }
+
+    class ApiClient {
+        +send_request(data, api_key)
+    }
+
+    class Logger {
+        +info(msg)
+        +error(msg)
+    }
+
+    RequestHandler --> APIKeyManager : uses
+    RequestHandler --> ApiClient : uses
+    RequestHandler --> Logger : logs

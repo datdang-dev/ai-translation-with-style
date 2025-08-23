@@ -1,0 +1,11 @@
+flowchart TD
+    %% =====================
+    %% get_next_available_key()
+    %% =====================
+    A1[Start_get_next_available_key] --> B1{key_available}
+    B1 -- Yes --> C1[Select key, set last_used] --> D1[Return key] --> T
+    B1 -- No --> E1[Rotate index] --> F1{all_keys_checked}
+    F1 -- No --> B1
+    F1 -- Yes --> G1[Return None] --> T
+
+    T@{ shape: summary}
