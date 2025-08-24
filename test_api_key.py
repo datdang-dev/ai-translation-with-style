@@ -8,16 +8,16 @@ import aiohttp
 import json
 
 #   "api_keys": [
-#     "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",
-#     "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",
-#     "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"
+#     "sk-or-v1-xx1",
+#     "sk-or-v1-xx2",
+#     "sk-or-v1-xx3"
 #   ]
 # }
 
 async def test_api_key():
     """Test API key directly with OpenRouter"""
     
-    api_key = "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"
+    api_key = "sk-or-v1-xx4"
     api_url = "https://openrouter.ai/api/v1/chat/completions"
     
     # Simple test payload
