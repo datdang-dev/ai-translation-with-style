@@ -381,19 +381,26 @@ class TranslationMonitorGUI:
             job_id=job_id
         )
         
-        # Create log queue for this job
+        # Create log queue for this job if not exists
         if job_id not in self.log_queues:
             self.log_queues[job_id] = queue.Queue()
-            
-        # Setup real-time logging callback
+            # Setup real-time logging callback
+            if self.orchestrator:
+                def log_callback(message):
+                    try:
+                        self.log_queues[job_id].put(message)
+                    except:
+                        pass
+                        
+                self.orchestrator.add_log_callback(job_id, log_callback)
+        
+        # Populate log window with existing logs from job object
         if self.orchestrator:
-            def log_callback(message):
-                try:
-                    self.log_queues[job_id].put(message)
-                except:
-                    pass
-                    
-            self.orchestrator.add_log_callback(job_id, log_callback)
+            job = self.orchestrator.get_job_by_id(job_id)
+            if job and job.log_messages:
+                for message in job.log_messages:
+                    text_widget.insert(tk.END, message + "\n")
+                text_widget.see(tk.END)
             
         # Handle window close
         def on_close():
@@ -681,6 +688,18 @@ Version: 1.0
                 
     def on_job_status_update(self, jobs_dict):
         """Callback for job status updates from orchestrator"""
+        # Set up log callbacks for any new jobs
+        for job_id in jobs_dict:
+            if job_id not in self.log_queues:
+                self.log_queues[job_id] = queue.Queue()
+                # Set up log callback immediately for this job
+                def log_callback(message, job_id=job_id):
+                    try:
+                        self.log_queues[job_id].put(message)
+                    except:
+                        pass
+                self.orchestrator.add_log_callback(job_id, log_callback)
+        
         # This is called from orchestrator thread, need to schedule GUI update
         jobs = list(jobs_dict.values())
         self.root.after(0, self.update_job_list_gui, jobs)
