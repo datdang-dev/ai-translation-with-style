@@ -22,6 +22,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from applet.batch_orchestrator import BatchTranslationOrchestrator, BatchJob
 from services.common.logger import get_logger
+from applet.orchestrator import TranslationOrchestrator
 
 @dataclass
 class GUIJobStatus:
@@ -277,7 +278,7 @@ class GUIBatchOrchestrator(BatchTranslationOrchestrator):
             )
             
             # Process with parent orchestrator
-            success = await self.process_single_file(batch_job)
+            success = await self.process_single_file(job_id, batch_job)
             
             if success:
                 self.update_job_status(job_id, status="completed", progress=1.0)
@@ -295,6 +296,24 @@ class GUIBatchOrchestrator(BatchTranslationOrchestrator):
             self.log_message(job_id, f"Exception occurred: {traceback.format_exc()}", "ERROR")
             return False
             
+    async def process_single_file(self, job_id: str, batch_job: BatchJob) -> bool:
+        """Run a single translation using TranslationOrchestrator with concurrency control."""
+        async with self.semaphore:
+            try:
+                self.log_message(job_id, f"Initializing translation orchestrator for {os.path.basename(batch_job.input_path)}")
+                orchestrator = TranslationOrchestrator(self.config_path)
+                self.log_message(job_id, f"Translating file: {batch_job.input_path}")
+                success = await orchestrator.translate_file(batch_job.input_path, batch_job.output_path)
+                if success:
+                    self.log_message(job_id, f"Saved output: {batch_job.output_path}")
+                    return True
+                else:
+                    self.log_message(job_id, "Underlying translation reported failure", "ERROR")
+                    return False
+            except Exception as e:
+                self.log_message(job_id, f"Exception during translation: {e}", "ERROR")
+                return False
+        
     def find_input_files(self, input_dir: str, pattern: str) -> List[str]:
         """Find input files matching the pattern"""
         import glob
