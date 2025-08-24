@@ -6,7 +6,7 @@ Test API key directly
 import asyncio
 import aiohttp
 import json
-
+import requests
 #   "api_keys": [
 #     "sk-or-v1-xx1",
 #     "sk-or-v1-xx2",
@@ -74,6 +74,14 @@ async def test_api_key():
         print(f"❌ Error: {e}")
         import traceback
         print(f"📋 Traceback: {traceback.format_exc()}")
+    print("\n")
+    response = requests.get(
+    url="https://openrouter.ai/api/v1/key",
+    headers={
+        "Authorization": f"Bearer {api_key}"
+    }
+    )
+    print(json.dumps(response.json(), indent=2))
 
 if __name__ == "__main__":
     asyncio.run(test_api_key())
