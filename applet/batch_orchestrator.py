@@ -50,20 +50,31 @@ class BatchTranslationOrchestrator:
         self.logger.info(f"Added job: {input_path} -> {output_path}")
     
     def add_jobs_from_directory(self, input_dir: str, output_dir: str, pattern: str = "*.json") -> None:
-        """Add all matching files from directory as jobs"""
+        """Add all matching files from directory as jobs in numerical order"""
         input_path = Path(input_dir)
         output_path = Path(output_dir)
         
         # Create output directory if it doesn't exist
         output_path.mkdir(parents=True, exist_ok=True)
         
-        # Find all matching files
-        for file_path in input_path.glob(pattern):
+        # Find all matching files and sort them numerically
+        file_paths = list(input_path.glob(pattern))
+        # Sort files numerically by extracting number from filename
+        import re
+        def extract_number(filename):
+            # Extract number from filename (e.g., chunk_001.json -> 1)
+            match = re.search(r'(\d+)', filename)
+            return int(match.group(1)) if match else 0
+        
+        file_paths.sort(key=lambda x: extract_number(x.name))
+        
+        # Add jobs in sorted order
+        for file_path in file_paths:
             if file_path.is_file():
                 output_file = output_path / file_path.name
                 self.add_job(str(file_path), str(output_file))
         
-        self.logger.info(f"Added {len([j for j in self.jobs if j.input_path.startswith(str(input_path))])} jobs from directory")
+        self.logger.info(f"Added {len([j for j in self.jobs if j.input_path.startswith(str(input_path))])} jobs from directory in numerical order")
     
     async def _process_single_job(self, job: BatchJob) -> None:
         """Process a single translation job"""

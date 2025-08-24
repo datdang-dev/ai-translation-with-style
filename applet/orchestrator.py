@@ -125,19 +125,21 @@ class TranslationOrchestrator:
                     if stripped_content.startswith("```json"):
                         # Remove the starting ```json
                         extracted_content = stripped_content[7:]
-                        # Remove the ending ```
-                        if extracted_content.strip().endswith("```"):
-                            extracted_content = extracted_content.strip()[:-3]
+                        # Remove the ending ``` if present
+                        extracted_content = extracted_content.strip()
+                        if extracted_content.endswith("```"):
+                            extracted_content = extracted_content[:-3]
                     elif stripped_content.startswith("```"):
                         # Remove the starting ```
                         extracted_content = stripped_content[3:]
-                        # Remove the ending ```
-                        if extracted_content.strip().endswith("```"):
-                            extracted_content = extracted_content.strip()[:-3]
+                        # Remove the ending ``` if present
+                        extracted_content = extracted_content.strip()
+                        if extracted_content.endswith("```"):
+                            extracted_content = extracted_content[:-3]
                     # Strip whitespace from the extracted content
                     extracted_content = extracted_content.strip()
                     
-                    # Parse JSON string from response
+                    # Try to parse JSON string from response
                     try:
                         parsed_json = json.loads(extracted_content)
                         if isinstance(parsed_json, dict):
@@ -145,8 +147,73 @@ class TranslationOrchestrator:
                         else:
                             # If not a dictionary, return original content
                             return {"error": f"Invalid response format: {translated_content}"}
-                    except json.JSONDecodeError:
-                        # If not a JSON string, return error
+                    except json.JSONDecodeError as e:
+                        # If JSON parsing fails, try to recover partial content
+                        self.logger.warning(f"JSON parsing failed: {e}")
+                        self.logger.warning(f"Attempting to recover partial JSON content...")
+                        
+                        # Method 1: Try to find and extract a valid JSON object from the content
+                        import re
+                        # Look for JSON objects that start with { and end with }
+                        json_matches = re.findall(r'\{[^{]*(?:\{[^{]*\})*[^}]*\}', extracted_content)
+                        if json_matches:
+                            # Try to parse the longest match first
+                            json_matches.sort(key=len, reverse=True)
+                            for match in json_matches:
+                                try:
+                                    # Clean up the match to make it more likely to be valid JSON
+                                    cleaned_match = match.strip()
+                                    if cleaned_match.startswith('{') and cleaned_match.endswith('}'):
+                                        parsed_json = json.loads(cleaned_match)
+                                        if isinstance(parsed_json, dict):
+                                            self.logger.info(f"Successfully recovered partial JSON with {len(parsed_json)} items (Method 1)")
+                                            return parsed_json
+                                except json.JSONDecodeError:
+                                    continue
+                        
+                        # Method 2: Try to fix common JSON issues
+                        try:
+                            # Try to fix truncated JSON by adding missing closing braces/brackets
+                            fixed_content = extracted_content
+                            # Count opening and closing braces
+                            open_braces = fixed_content.count('{')
+                            close_braces = fixed_content.count('}')
+                            # Add missing closing braces
+                            if open_braces > close_braces:
+                                fixed_content += '}' * (open_braces - close_braces)
+                            
+                            # Count opening and closing brackets
+                            open_brackets = fixed_content.count('[')
+                            close_brackets = fixed_content.count(']')
+                            # Add missing closing brackets
+                            if open_brackets > close_brackets:
+                                fixed_content += ']' * (open_brackets - close_brackets)
+                            
+                            # Try to parse the fixed content
+                            parsed_json = json.loads(fixed_content)
+                            if isinstance(parsed_json, dict):
+                                self.logger.info(f"Successfully parsed fixed JSON with {len(parsed_json)} items (Method 2)")
+                                return parsed_json
+                        except json.JSONDecodeError:
+                            pass
+                        
+                        # Method 3: Try to extract key-value pairs manually
+                        try:
+                            # Look for patterns like "key": "value"
+                            kv_pairs = re.findall(r'"([^"]+)":\s*"([^"]*)"', extracted_content)
+                            if kv_pairs:
+                                # Create a dictionary from the key-value pairs
+                                recovered_dict = {}
+                                for key, value in kv_pairs:
+                                    recovered_dict[key] = value
+                                if recovered_dict:
+                                    self.logger.info(f"Successfully recovered {len(recovered_dict)} items from key-value pairs (Method 3)")
+                                    return recovered_dict
+                        except Exception as recovery_error:
+                            self.logger.error(f"Recovery method 3 failed: {recovery_error}")
+                            pass
+                        
+                        # If all recovery attempts fail, return error with partial content
                         return {"error": f"Failed to parse JSON response: {translated_content}"}
                 except Exception as e:
                     self.logger.error(f"Error processing API response: {e}")
