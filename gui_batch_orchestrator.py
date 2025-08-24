@@ -33,6 +33,9 @@ class GUIJobStatus:
     error: str = None
     start_time: float = None
     end_time: float = None
+    # Monotonic timestamps for accurate duration calculations
+    start_monotonic: float = None
+    end_monotonic: float = None
     progress: float = 0.0
     current_step: str = ""
     total_steps: int = 0
@@ -111,11 +114,18 @@ class GUIBatchOrchestrator(BatchTranslationOrchestrator):
                 # Handle status transitions
                 if status == "processing" and old_status == "pending":
                     job.start_time = time.time()
+                    job.start_monotonic = time.monotonic()
                     self.log_message(job_id, f"Starting translation of {os.path.basename(job.input_path)}")
                 elif status in ["completed", "failed", "cancelled"]:
                     job.end_time = time.time()
-                    if job.start_time:
+                    job.end_monotonic = time.monotonic()
+                    duration = None
+                    if job.start_monotonic is not None and job.end_monotonic is not None:
+                        duration = job.end_monotonic - job.start_monotonic
+                    elif job.start_time is not None and job.end_time is not None:
+                        # Fallback to wall clock if monotonic not available
                         duration = job.end_time - job.start_time
+                    if duration is not None:
                         self.log_message(job_id, f"Job {status} in {duration:.2f} seconds")
                         
             if progress is not None:
@@ -181,6 +191,7 @@ class GUIBatchOrchestrator(BatchTranslationOrchestrator):
                 gui_job_ids.append(job_id)
                 
             start_time = time.time()
+            start_monotonic = time.monotonic()
             
             # Create translation tasks
             tasks = []
@@ -195,12 +206,13 @@ class GUIBatchOrchestrator(BatchTranslationOrchestrator):
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             end_time = time.time()
+            end_monotonic = time.monotonic()
             
             # Calculate summary
             completed = sum(1 for result in results if result is True)
             failed = len(results) - completed
             success_rate = completed / len(results) if results else 0.0
-            total_time = end_time - start_time
+            total_time = end_monotonic - start_monotonic
             
             summary = {
                 "total_jobs": len(gui_job_ids),
@@ -361,7 +373,10 @@ class GUIBatchOrchestrator(BatchTranslationOrchestrator):
                     f.write(f"Start Time: {datetime.fromtimestamp(job.start_time)}\n")
                 if job.end_time:
                     f.write(f"End Time: {datetime.fromtimestamp(job.end_time)}\n")
-                    f.write(f"Duration: {job.end_time - job.start_time:.2f} seconds\n")
+                    if job.start_monotonic is not None and job.end_monotonic is not None:
+                        f.write(f"Duration: {job.end_monotonic - job.start_monotonic:.2f} seconds\n")
+                    elif job.start_time is not None:
+                        f.write(f"Duration: {job.end_time - job.start_time:.2f} seconds\n")
                 if job.error:
                     f.write(f"Error: {job.error}\n")
                 f.write(f"\nLog Messages:\n")
