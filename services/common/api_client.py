@@ -51,12 +51,14 @@ class OpenRouterClient(APIClient):
                     raise RuntimeError("No available API key")
                 
                 key = key_info['key']
-                self.logger.info(f"Using API key...")
+                # Use the simple key name for logging
+                key_name = key_info.get('name', 'unknown_key')
+                self.logger.info(f"🔐 [API REQUEST] Using key: {key_name}")
                 
-                # Logging remains synchronous but quick
+                # Log service and model information
                 service_name = 'OpenRouter'
                 model_name = data.get('model', 'unknown')
-                self.logger.info(f"Using Translation Service: {service_name} | Model: {model_name}")
+                self.logger.info(f"📡 [SERVICE] {service_name} | Model: {model_name}")
 
                 headers = {
                     "Authorization": f"Bearer {key}",
@@ -74,9 +76,9 @@ class OpenRouterClient(APIClient):
                             json=data,
                             timeout=aiohttp.ClientTimeout(total=60)
                         ) as response:
-                            response.status_code = response.status
+                            # response.status_code = response.status
                             
-                            if response.status_code == 200:
+                            if response.status == 200:
                                 # Xử lý streaming response
                                 full_response = ""
                                 buffer = ""
@@ -130,27 +132,27 @@ class OpenRouterClient(APIClient):
                                     ]
                                 }
                             
-                            if response.status_code == 429 or "Rate limit exceeded" in (await response.text()):
+                            if response.status == 429 or "Rate limit exceeded" in (await response.text()):
                                 # Only switch key if rate limit
                                 response_text = await response.text()
                                 last_error = response_text
-                                self.logger.warning(f"Key rate-limited, switching...")
-                                await self.api_key_manager.report_key_error(key, response.status_code)
+                                self.logger.warning(f"⚠️  [RATE LIMIT] Key rate-limited, switching to next key...")
+                                await self.api_key_manager.report_key_error(key, response.status)
                                 continue
-                            elif response.status_code >= 500:
+                            elif response.status >= 500:
                                 # Server error: fail immediately (no backoff)
                                 response_text = await response.text()
                                 last_error = response_text
-                                self.logger.error(f"API server error {response.status_code}: {response_text[:200]}")
-                                await self.api_key_manager.report_key_error(key, response.status_code)
-                                raise RuntimeError(f"API server error {response.status_code}")
+                                self.logger.error(f"💥 [SERVER ERROR] API server error {response.status}: {response_text[:200]}")
+                                await self.api_key_manager.report_key_error(key, response.status)
+                                raise RuntimeError(f"API server error {response.status}")
                             else:
                                 # Other client errors: fail immediately
                                 response_text = await response.text()
                                 last_error = response_text
-                                self.logger.error(f"API error {response.status_code}: {response_text[:200]}")
-                                await self.api_key_manager.report_key_error(key, response.status_code)
-                                raise RuntimeError(f"API error {response.status_code}")
+                                self.logger.error(f"❌ [CLIENT ERROR] API error {response.status}: {response_text[:200]}")
+                                await self.api_key_manager.report_key_error(key, response.status)
+                                raise RuntimeError(f"API error {response.status}")
                     else:
                         # Xử lý non-streaming request
                         async with session.post(
@@ -161,33 +163,33 @@ class OpenRouterClient(APIClient):
                         ) as response:
                             # Read response content immediately
                             response_text = await response.text()
-                            response.status_code = response.status
+                            # response.status_code = response.status
                             
-                            if response.status_code == 200:
+                            if response.status == 200:
                                 try:
                                     return json.loads(response_text)
                                 except json.JSONDecodeError as e:
                                     self.logger.error(f"Failed to parse JSON response: {e}")
                                     raise RuntimeError(f"Failed to parse JSON response: {e}")
                             
-                            if response.status_code == 429 or "Rate limit exceeded" in response_text:
+                            if response.status == 429 or "Rate limit exceeded" in response_text:
                                 # Only switch key if rate limit
                                 last_error = response_text
-                                self.logger.warning(f"Key rate-limited, switching...")
-                                await self.api_key_manager.report_key_error(key, response.status_code)
+                                self.logger.warning(f"⚠️  [RATE LIMIT] Key rate-limited, switching to next key...")
+                                await self.api_key_manager.report_key_error(key, response.status)
                                 continue
-                            elif response.status_code >= 500:
+                            elif response.status >= 500:
                                 # Server error: fail immediately (no backoff)
                                 last_error = response_text
-                                self.logger.error(f"API server error {response.status_code}: {response_text[:200]}")
-                                await self.api_key_manager.report_key_error(key, response.status_code)
-                                raise RuntimeError(f"API server error {response.status_code}")
+                                self.logger.error(f"💥 [SERVER ERROR] API server error {response.status}: {response_text[:200]}")
+                                await self.api_key_manager.report_key_error(key, response.status)
+                                raise RuntimeError(f"API server error {response.status}")
                             else:
                                 # Other client errors: fail immediately
                                 last_error = response_text
-                                self.logger.error(f"API error {response.status_code}: {response_text[:200]}")
-                                await self.api_key_manager.report_key_error(key, response.status_code)
-                                raise RuntimeError(f"API error {response.status_code}")
+                                self.logger.error(f"❌ [CLIENT ERROR] API error {response.status}: {response_text[:200]}")
+                                await self.api_key_manager.report_key_error(key, response.status)
+                                raise RuntimeError(f"API error {response.status}")
                 except aiohttp.ClientError as e:
                     last_error = str(e)
                     self.logger.error(f"Connection error: {e}")

@@ -36,17 +36,23 @@ class TranslationOrchestrator:
         # Initialize API key manager with keys from config
         api_keys = self.config.get("api_keys", [])
         if not api_keys:
-            # Use default key list if not in config
-            api_keys = [
-                "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",
-                "sk-or-v1-7347f7d33b1a8b8d223cede97da38bc928539d13f87c8e8a581ebc7a1f7830",
-                "sk-or-v1-70564b801719235882049dd673825c64b4c7e05699a9009ba0d7fccf1b87f",
-                "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",
-                "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",
-                "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",
-                "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",
-                "sk-or-v1-34ace24dab5d6b2d552103d46e5e035b2e4bf7d43f49d694dc169468b6401c0"
-            ]
+            # Try to load API keys from external file
+            try:
+                api_keys_path = "config/api_keys.json"
+                with open(api_keys_path, 'r', encoding='utf-8') as f:
+                    api_keys_config = json.load(f)
+                    api_keys = api_keys_config.get("api_keys", [])
+                self.logger.info(f"Loaded {len(api_keys)} API keys from {api_keys_path}")
+            except FileNotFoundError:
+                self.logger.warning(f"API keys file not found at {api_keys_path}")
+                api_keys = []
+            except Exception as e:
+                self.logger.error(f"Error loading API keys: {e}")
+                api_keys = []
+        
+        if not api_keys:
+            self.logger.error("No API keys available. Please configure API keys in config/api_keys.json")
+            raise ValueError("No API keys available")
         
         # Pass required parameters to APIKeyManager
         max_retries = self.config.get("max_retries", 3)
@@ -114,18 +120,22 @@ class TranslationOrchestrator:
                     
                     # Extract JSON from backticks if present
                     extracted_content = translated_content
-                    if translated_content.startswith("```json"):
+                    # Handle cases where JSON is wrapped in backticks with or without json specifier
+                    stripped_content = translated_content.strip()
+                    if stripped_content.startswith("```json"):
                         # Remove the starting ```json
-                        extracted_content = translated_content[7:]
+                        extracted_content = stripped_content[7:]
                         # Remove the ending ```
-                        if extracted_content.endswith("```"):
-                            extracted_content = extracted_content[:-3]
-                    elif translated_content.startswith("```"):
+                        if extracted_content.strip().endswith("```"):
+                            extracted_content = extracted_content.strip()[:-3]
+                    elif stripped_content.startswith("```"):
                         # Remove the starting ```
-                        extracted_content = translated_content[3:]
+                        extracted_content = stripped_content[3:]
                         # Remove the ending ```
-                        if extracted_content.endswith("```"):
-                            extracted_content = extracted_content[:-3]
+                        if extracted_content.strip().endswith("```"):
+                            extracted_content = extracted_content.strip()[:-3]
+                    # Strip whitespace from the extracted content
+                    extracted_content = extracted_content.strip()
                     
                     # Parse JSON string from response
                     try:

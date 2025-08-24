@@ -4,7 +4,7 @@ from typing import Dict, Optional, Tuple
 from services.common import error_codes
 from services.key_manager.key_manager import APIKeyManager
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 class RequestHandler:
     def __init__(self, api_client, key_manager: APIKeyManager, logger, config: Dict):
@@ -39,11 +39,20 @@ class RequestHandler:
                 self.logger.info("Translation request completed successfully")
                 return error_codes.ERR_NONE, response
             except Exception as e:
-                self.logger.error(f"Exception in translation request: {str(e)}")
+                self.logger.error(f"Exception in translation request (attempt {self.retry_count + 1}): {str(e)}")
+                # Log full exception details
+                import traceback
+                self.logger.error(f"Full traceback: {traceback.format_exc()}")
+                self.logger.error(f"Exception type: {type(e).__name__}")
+                if hasattr(e, '__dict__'):
+                    self.logger.error(f"Exception attributes: {e.__dict__}")
+                
                 self.retry_count += 1
                 if self.retry_count > self.config.get("max_retries", 3):
+                    self.logger.error(f"Max retries exceeded ({self.retry_count} attempts)")
                     return error_codes.ERR_RETRY_MAX_EXCEEDED, None
                 backoff = self.config.get("backoff_base", 2.0) ** self.retry_count
+                self.logger.info(f"Retrying in {backoff:.1f}s (attempt {self.retry_count})")
                 await asyncio.sleep(backoff)
 
         return error_codes.ERR_RETRY_MAX_EXCEEDED, None

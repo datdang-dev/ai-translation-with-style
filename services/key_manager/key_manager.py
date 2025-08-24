@@ -13,12 +13,13 @@ class APIKeyManager:
         self.keys = [
             {
                 'key': key,
+                'name': f"key{i+1}",  # Simple name: key1, key2, etc.
                 'status': KeyStatus.ACTIVE,
                 'retry_count': 0,
                 'last_used': None,
                 'next_retry_time': 0,
                 'timestamps': []
-            } for key in api_keys
+            } for i, key in enumerate(api_keys)
         ]
         self.current_index = 0
         self.max_retries = max_retries

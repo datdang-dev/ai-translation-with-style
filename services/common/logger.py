@@ -9,7 +9,7 @@ class ColorFormatter(logging.Formatter):
     COLORS = {
         logging.DEBUG: "\033[37m",    # xám
         logging.INFO: "\033[36m",     # cyan
-        logging.WARNING: "\03[33m",  # vàng
+        logging.WARNING: "\033[33m",  # vàng
         logging.ERROR: "\033[31m",    # đỏ
         logging.CRITICAL: "\033[41m", # nền đỏ
         AIMIND_LEVEL_NUM: "\033[32m"  # xanh lá
