@@ -25,6 +25,9 @@ class BatchJob:
     start_time: float = None
     end_time: float = None
     result: Dict[str, Any] = None
+    # Use monotonic clock for reliable duration calculations
+    start_monotonic: float = None
+    end_monotonic: float = None
 
 class BatchTranslationOrchestrator:
     """Handles batch translation of multiple files"""
@@ -81,7 +84,10 @@ class BatchTranslationOrchestrator:
         async with self.semaphore:  # Limit concurrent executions
             try:
                 job.status = "processing"
+                # Record both wall-clock (for human-readable timestamps) and
+                # monotonic time (for accurate duration calculations)
                 job.start_time = time.time()
+                job.start_monotonic = time.monotonic()
                 
                 self.logger.info(f"🔄 [PROCESSING] Job started at {time.strftime('%H:%M:%S', time.localtime(job.start_time))}")
                 self.logger.info(f"   ├── File: {job.input_path}")
@@ -94,23 +100,37 @@ class BatchTranslationOrchestrator:
                 success = await orchestrator.translate_file(job.input_path, job.output_path)
                 
                 job.end_time = time.time()
+                job.end_monotonic = time.monotonic()
                 
                 if success:
                     job.status = "completed"
                     # Load result for reporting
                     with open(job.output_path, 'r', encoding='utf-8') as f:
                         job.result = json.load(f)
-                    self.logger.info(f"✅ [SUCCESS] Job completed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {job.end_time - job.start_time:.2f}s)")
+                    duration_s = (job.end_monotonic - job.start_monotonic) if (job.end_monotonic is not None and job.start_monotonic is not None) else None
+                    if duration_s is not None:
+                        self.logger.info(f"✅ [SUCCESS] Job completed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {duration_s:.2f}s)")
+                    else:
+                        self.logger.info(f"✅ [SUCCESS] Job completed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}")
                 else:
                     job.status = "failed"
                     job.error = "Translation failed"
-                    self.logger.error(f"❌ [FAILED] Job failed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}")
+                    duration_s = (job.end_monotonic - job.start_monotonic) if (job.end_monotonic is not None and job.start_monotonic is not None) else None
+                    if duration_s is not None:
+                        self.logger.error(f"❌ [FAILED] Job failed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {duration_s:.2f}s)")
+                    else:
+                        self.logger.error(f"❌ [FAILED] Job failed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}")
                     
             except Exception as e:
                 job.status = "failed"
                 job.error = str(e)
                 job.end_time = time.time()
-                self.logger.error(f"💥 [ERROR] Job failed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}: {e}")
+                job.end_monotonic = time.monotonic()
+                duration_s = (job.end_monotonic - job.start_monotonic) if (job.end_monotonic is not None and job.start_monotonic is not None) else None
+                if duration_s is not None:
+                    self.logger.error(f"💥 [ERROR] Job failed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}: {e} (duration: {duration_s:.2f}s)")
+                else:
+                    self.logger.error(f"💥 [ERROR] Job failed at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}: {e}")
                 # Log full exception details
                 import traceback
                 self.logger.error(f"📋 [TRACEBACK] Full traceback: {traceback.format_exc()}")
@@ -140,6 +160,7 @@ class BatchTranslationOrchestrator:
         for i, job in enumerate(self.jobs, 1):
             self.logger.info(f"   {i}. {job.input_path}")
         start_time = time.time()
+        run_start_monotonic = time.monotonic()
         
         # Process jobs with delay between job starts
         tasks = []
@@ -157,11 +178,14 @@ class BatchTranslationOrchestrator:
             
             # Add delay before next job starts (except for the last job)
             if i < len(self.jobs) - 1:
-                delay_start = time.time()
-                self.logger.info(f"⏳ [JOB {i+2}/{len(self.jobs)}] WAITING for {self.job_delay}s delay (started at {time.strftime('%H:%M:%S', time.localtime(delay_start))})")
+                delay_start_wall = time.time()
+                delay_start_monotonic = time.monotonic()
+                self.logger.info(f"⏳ [JOB {i+2}/{len(self.jobs)}] WAITING for {self.job_delay}s delay (started at {time.strftime('%H:%M:%S', time.localtime(delay_start_wall))})")
                 await asyncio.sleep(self.job_delay)
-                delay_end = time.time()
-                self.logger.info(f"   └── Delay completed at {time.strftime('%H:%M:%S', time.localtime(delay_end))} (duration: {delay_end - delay_start:.2f}s)")
+                delay_end_wall = time.time()
+                delay_end_monotonic = time.monotonic()
+                delay_duration = delay_end_monotonic - delay_start_monotonic
+                self.logger.info(f"   └── Delay completed at {time.strftime('%H:%M:%S', time.localtime(delay_end_wall))} (duration: {delay_duration:.2f}s)")
             else:
                 self.logger.info(f"🏁 ALL JOBS STARTED - Waiting for completions...")
         
@@ -170,6 +194,7 @@ class BatchTranslationOrchestrator:
         await asyncio.gather(*tasks, return_exceptions=True)
         
         end_time = time.time()
+        run_end_monotonic = time.monotonic()
         
         # Log job completions summary
         completed_jobs = [j for j in self.jobs if j.status == "completed"]
@@ -178,25 +203,32 @@ class BatchTranslationOrchestrator:
         self.logger.info(f"📊 JOB COMPLETION SUMMARY:")
         self.logger.info(f"   ├── Completed: {len(completed_jobs)}/{len(self.jobs)}")
         self.logger.info(f"   ├── Failed: {len(failed_jobs)}/{len(self.jobs)}")
-        self.logger.info(f"   └── Total duration: {end_time - start_time:.2f}s")
+        self.logger.info(f"   └── Total duration: {run_end_monotonic - run_start_monotonic:.2f}s")
         
         # Log individual job completions
         for i, job in enumerate(self.jobs):
             if job.end_time:
-                duration = job.end_time - job.start_time
+                duration = (job.end_monotonic - job.start_monotonic) if (job.end_monotonic is not None and job.start_monotonic is not None) else None
                 if job.status == "completed":
-                    self.logger.info(f"✅ [JOB {i+1}/{len(self.jobs)}] COMPLETED at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {duration:.2f}s)")
+                    if duration is not None:
+                        self.logger.info(f"✅ [JOB {i+1}/{len(self.jobs)}] COMPLETED at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {duration:.2f}s)")
+                    else:
+                        self.logger.info(f"✅ [JOB {i+1}/{len(self.jobs)}] COMPLETED at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}")
                     self.logger.info(f"   ├── File: {job.input_path}")
                     self.logger.info(f"   └── Status: SUCCESS")
                 else:
-                    self.logger.info(f"❌ [JOB {i+1}/{len(self.jobs)}] FAILED at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {duration:.2f}s)")
+                    if duration is not None:
+                        self.logger.info(f"❌ [JOB {i+1}/{len(self.jobs)}] FAILED at {time.strftime('%H:%M:%S', time.localtime(job.end_time))} (duration: {duration:.2f}s)")
+                    else:
+                        self.logger.info(f"❌ [JOB {i+1}/{len(self.jobs)}] FAILED at {time.strftime('%H:%M:%S', time.localtime(job.end_time))}")
                     self.logger.info(f"   ├── File: {job.input_path}")
                     self.logger.info(f"   └── Error: {job.error}")
         
         # Generate summary
-        summary = self._generate_summary(start_time, end_time)
+        total_duration = run_end_monotonic - run_start_monotonic
+        summary = self._generate_summary(total_duration)
         
-        self.logger.info(f"🎯 Batch processing completed in {end_time - start_time:.2f}s")
+        self.logger.info(f"🎯 Batch processing completed in {total_duration:.2f}s")
         self.logger.info(f"📊 Summary: {summary['completed']} completed, {summary['failed']} failed")
         
         # Log failed jobs details
@@ -208,13 +240,13 @@ class BatchTranslationOrchestrator:
         
         return summary
     
-    def _generate_summary(self, start_time: float, end_time: float) -> Dict[str, Any]:
-        """Generate processing summary"""
+    def _generate_summary(self, total_duration: float) -> Dict[str, Any]:
+        """Generate processing summary using monotonic total duration"""
         completed = [j for j in self.jobs if j.status == "completed"]
         failed = [j for j in self.jobs if j.status == "failed"]
         pending = [j for j in self.jobs if j.status == "pending"]
         
-        total_time = end_time - start_time
+        total_time = total_duration
         avg_time = total_time / len(self.jobs) if self.jobs else 0
         
         return {
@@ -231,7 +263,7 @@ class BatchTranslationOrchestrator:
                     "output_path": job.output_path,
                     "status": job.status,
                     "error": job.error,
-                    "processing_time": job.end_time - job.start_time if job.end_time and job.start_time else None,
+                    "processing_time": (job.end_monotonic - job.start_monotonic) if (job.end_monotonic is not None and job.start_monotonic is not None) else None,
                     "result_keys": len(job.result) if job.result else 0
                 }
                 for job in self.jobs

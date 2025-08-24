@@ -36,8 +36,8 @@ async def main():
             input_dir=input_dir,
             output_dir=output_dir,
             pattern="chunk_*.json",
-            max_concurrent=10, # 20 is the max concurrent requests allowed by the API but reserve 2 to avoid rate limit
-            job_delay=20.0  # 10-second delay between jobs to avoid API key limiting
+            max_concurrent=100, # 20 is the max concurrent requests allowed by the API but reserve 2 to avoid rate limit
+            job_delay=10.0  # 10-second delay between jobs to avoid API key limiting
         )
         
         # Display results
