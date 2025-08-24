@@ -381,10 +381,18 @@ class TranslationMonitorGUI:
             job_id=job_id
         )
         
+        # Preload existing logs if available
+        if self.orchestrator:
+            job = self.orchestrator.get_job_by_id(job_id)
+            if job and getattr(job, "log_messages", None):
+                for message in job.log_messages:
+                    text_widget.insert(tk.END, message + "\n")
+                text_widget.see(tk.END)
+        
         # Create log queue for this job
         if job_id not in self.log_queues:
             self.log_queues[job_id] = queue.Queue()
-            
+        
         # Setup real-time logging callback
         if self.orchestrator:
             def log_callback(message):
@@ -394,7 +402,7 @@ class TranslationMonitorGUI:
                     pass
                     
             self.orchestrator.add_log_callback(job_id, log_callback)
-            
+        
         # Handle window close
         def on_close():
             if job_id in self.job_windows:
@@ -402,7 +410,7 @@ class TranslationMonitorGUI:
             if self.orchestrator:
                 self.orchestrator.remove_log_callback(job_id)
             log_window.destroy()
-            
+        
         log_window.protocol("WM_DELETE_WINDOW", on_close)
         
     def view_job_details(self):
