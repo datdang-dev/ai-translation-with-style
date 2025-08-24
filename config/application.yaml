@@ -1,0 +1,86 @@
+application:
+  name: "ai-translation-framework"
+  version: "2.0.0"
+  environment: "${ENVIRONMENT:development}"
+
+translation:
+  batch_size: 10
+  max_concurrent_jobs: "${MAX_CONCURRENT:5}"
+  chunk_strategy: "semantic"  # semantic, token_based, fixed_size
+  context_window_size: 5
+  quality_threshold: 0.8
+
+providers:
+  default: "openrouter"
+  fallback_chain: ["openrouter", "openai", "gemini"]
+  
+  providers:
+    openrouter:
+      type: "openrouter"
+      api_url: "https://openrouter.ai/api/v1/chat/completions"
+      models:
+        primary: "anthropic/claude-3-sonnet"
+        fallback: "openai/gpt-4-turbo"
+      rate_limiting:
+        requests_per_minute: 20
+        concurrent_requests: 3
+        backoff_strategy: "exponential"
+      timeout: 30
+      retry_config:
+        max_attempts: 3
+        base_delay: 1.0
+        
+    openai:
+      type: "openai"
+      api_url: "https://api.openai.com/v1/chat/completions"
+      models:
+        primary: "gpt-4-turbo"
+        fallback: "gpt-3.5-turbo"
+      rate_limiting:
+        requests_per_minute: 60
+        concurrent_requests: 5
+        backoff_strategy: "linear"
+      timeout: 30
+      retry_config:
+        max_attempts: 3
+        base_delay: 0.5
+
+performance:
+  async_concurrency: "${ASYNC_CONCURRENCY:10}"
+  connection_pool_size: 20
+  timeout_seconds: 30
+  retry_attempts: 3
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 60
+
+quality:
+  enable_validation: true
+  validation_levels: ["structure", "content", "consistency"]
+  confidence_threshold: 0.8
+  multi_model_validation: false
+
+observability:
+  logging:
+    level: "${LOG_LEVEL:INFO}"
+    format: "json"
+    outputs:
+      - type: "console"
+      - type: "file"
+        path: "logs/app.log"
+        rotation: "daily"
+      - type: "elasticsearch"
+        enabled: false
+        url: "${ELASTICSEARCH_URL:}"
+  
+  metrics:
+    enabled: true
+    prometheus_port: 9090
+    custom_metrics:
+      - "translation_duration"
+      - "quality_score"
+      - "provider_success_rate"
+  
+  tracing:
+    enabled: false
+    jaeger_endpoint: "${JAEGER_ENDPOINT:}"
