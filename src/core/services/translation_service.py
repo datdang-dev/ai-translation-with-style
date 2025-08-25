@@ -57,7 +57,10 @@ class TranslationService:
         preferred_provider: Optional[str] = None
     ) -> TranslationResult:
         """
-        Translate a single request.
+        Translate a single request using batch processing internally.
+        
+        Note: The new architecture always uses batch processing for consistency
+        and optimal resource utilization, even for single requests.
         
         Args:
             request: Translation request
@@ -67,7 +70,7 @@ class TranslationService:
             Translation result
         """
         self.logger.info(
-            "Starting single translation",
+            "Starting single translation (using batch processing internally)",
             request_id=request.request_id,
             source_lang=request.source_language,
             target_lang=request.target_language,
@@ -75,8 +78,33 @@ class TranslationService:
             preferred_provider=preferred_provider
         )
         
-        async with self.semaphore:
-            return await self._translate_with_fallback(request, preferred_provider)
+        # Create a single-item batch request
+        batch_request = BatchTranslationRequest(
+            requests=[request],
+            max_concurrent=1,
+            shared_provider=preferred_provider,
+            batch_timeout_seconds=request.timeout_seconds or 30
+        )
+        
+        # Process as batch
+        batch_result = await self.translate_batch(batch_request)
+        
+        # Return the single result
+        if batch_result.results:
+            return batch_result.results[0]
+        else:
+            # Fallback error result
+            return TranslationResult(
+                request_id=request.request_id,
+                status=TranslationStatus.FAILED,
+                original_text=request.text,
+                target_language=request.target_language,
+                error=TranslationError(
+                    error_type=ErrorType.UNKNOWN_ERROR,
+                    message="Batch processing returned no results",
+                    is_retryable=False
+                )
+            )
     
     async def translate_batch(
         self, 
