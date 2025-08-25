@@ -2,7 +2,10 @@
 
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
-from pydantic import BaseSettings, Field, validator
+try:
+    from pydantic.v1 import BaseSettings, Field, validator
+except ImportError:
+    from pydantic import BaseSettings, Field, validator
 from enum import Enum
 
 from ...core.models import ProvidersConfig

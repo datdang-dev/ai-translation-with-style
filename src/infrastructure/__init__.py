@@ -1,1 +1,1 @@
-"""Infrastructure layer for external dependencies"""
+"""Infrastructure layer implementations"""
