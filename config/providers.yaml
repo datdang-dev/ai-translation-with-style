@@ -1,0 +1,138 @@
+# Translation providers configuration
+# Configure your AI translation providers here
+
+providers:
+  - name: "openrouter"
+    type: "openrouter"
+    display_name: "OpenRouter"
+    description: "OpenRouter API for multiple AI models"
+    base_url: "https://openrouter.ai/api/v1"
+    timeout_seconds: 30
+    auth_type: "api_key"
+    api_keys: []  # Add your API keys via environment variables or separate config
+    
+    # Rate limiting configuration
+    rate_limit:
+      requests_per_minute: 60
+      requests_per_hour: 3000
+      backoff_base: 2.0
+      max_backoff_seconds: 300
+    
+    # Retry configuration
+    retry_config:
+      max_retries: 3
+      initial_delay_seconds: 1.0
+      max_delay_seconds: 60.0
+      exponential_base: 2.0
+      jitter: true
+      retry_on_timeout: true
+      retry_on_rate_limit: true
+      retry_on_network_error: true
+      retry_on_server_error: true
+    
+    # Available models
+    models:
+      - name: "anthropic/claude-3.5-sonnet"
+        display_name: "Claude 3.5 Sonnet"
+        max_input_tokens: 200000
+        max_output_tokens: 4096
+        supports_streaming: true
+        input_cost_per_1k_tokens: 0.003
+        output_cost_per_1k_tokens: 0.015
+        default_temperature: 0.3
+        quality_tier: "premium"
+        response_time_tier: "standard"
+      
+      - name: "anthropic/claude-3-haiku"
+        display_name: "Claude 3 Haiku"
+        max_input_tokens: 200000
+        max_output_tokens: 4096
+        supports_streaming: true
+        input_cost_per_1k_tokens: 0.00025
+        output_cost_per_1k_tokens: 0.00125
+        default_temperature: 0.3
+        quality_tier: "standard"
+        response_time_tier: "fast"
+      
+      - name: "openai/gpt-4o"
+        display_name: "GPT-4o"
+        max_input_tokens: 128000
+        max_output_tokens: 4096
+        supports_streaming: true
+        input_cost_per_1k_tokens: 0.005
+        output_cost_per_1k_tokens: 0.015
+        default_temperature: 0.3
+        quality_tier: "premium"
+        response_time_tier: "standard"
+      
+      - name: "openai/gpt-4o-mini"
+        display_name: "GPT-4o Mini"
+        max_input_tokens: 128000
+        max_output_tokens: 16384
+        supports_streaming: true
+        input_cost_per_1k_tokens: 0.00015
+        output_cost_per_1k_tokens: 0.0006
+        default_temperature: 0.3
+        quality_tier: "standard"
+        response_time_tier: "fast"
+    
+    default_model: "anthropic/claude-3.5-sonnet"
+    enabled: true
+    supports_batch: false
+    supports_streaming: true
+    priority: 1
+
+# Global provider settings
+default_provider: "openrouter"
+enable_fallback: true
+fallback_order:
+  - "openrouter"
+
+# Example configuration for additional providers (commented out)
+# Uncomment and configure as needed
+
+# - name: "openai"
+#   type: "openai"
+#   display_name: "OpenAI"
+#   description: "Direct OpenAI API"
+#   base_url: "https://api.openai.com/v1"
+#   timeout_seconds: 30
+#   auth_type: "api_key"
+#   api_keys: []
+#   
+#   rate_limit:
+#     requests_per_minute: 500
+#     tokens_per_minute: 10000
+#   
+#   models:
+#     - name: "gpt-4o"
+#       display_name: "GPT-4o"
+#       max_input_tokens: 128000
+#       max_output_tokens: 4096
+#   
+#   default_model: "gpt-4o"
+#   enabled: false
+#   priority: 2
+
+# - name: "anthropic"
+#   type: "anthropic"
+#   display_name: "Anthropic"
+#   description: "Direct Anthropic API"
+#   base_url: "https://api.anthropic.com"
+#   timeout_seconds: 30
+#   auth_type: "api_key"
+#   api_keys: []
+#   
+#   rate_limit:
+#     requests_per_minute: 50
+#     tokens_per_minute: 40000
+#   
+#   models:
+#     - name: "claude-3-5-sonnet-20241022"
+#       display_name: "Claude 3.5 Sonnet"
+#       max_input_tokens: 200000
+#       max_output_tokens: 4096
+#   
+#   default_model: "claude-3-5-sonnet-20241022"
+#   enabled: false
+#   priority: 3

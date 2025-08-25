@@ -1,0 +1,68 @@
+# Default configuration for AI Translation Framework
+# This file contains the base configuration that applies to all environments
+
+app_name: "AI Translation Framework"
+app_version: "2.0.0"
+environment: "development"
+debug: false
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "json"
+  enable_file_logging: true
+  log_file: "logs/translation.log"
+  max_file_size_mb: 100
+  backup_count: 5
+  enable_console_logging: true
+  console_format: "colored"
+  include_timestamp: true
+  include_level: true
+  include_logger_name: true
+  include_thread_info: false
+  include_process_info: false
+  enable_sentry: false
+  sentry_dsn: null
+
+# Translation settings
+translation:
+  default_source_language: "auto"
+  default_target_language: "vi"
+  default_style: "conversational"
+  default_timeout_seconds: 30
+  max_concurrent_requests: 10
+  max_batch_size: 100
+  max_retries: 3
+  retry_delay_seconds: 1.0
+  retry_exponential_base: 2.0
+  enable_rate_limiting: true
+  default_requests_per_minute: 60
+  enable_input_validation: true
+  max_text_length: 50000
+  min_text_length: 1
+  enable_provider_fallback: true
+  fallback_timeout_seconds: 10
+
+# Database settings (optional)
+database:
+  enable_database: false
+  database_url: null
+  max_connections: 10
+  min_connections: 1
+  connection_timeout_seconds: 30
+  enable_result_caching: false
+  cache_ttl_seconds: 3600
+  max_cache_size: 10000
+
+# Observability settings
+observability:
+  enable_metrics: true
+  metrics_port: 9090
+  metrics_path: "/metrics"
+  enable_tracing: false
+  tracing_endpoint: null
+  tracing_service_name: "ai-translation-framework"
+  tracing_sample_rate: 0.1
+  enable_health_checks: true
+  health_check_interval_seconds: 30
+  health_check_timeout_seconds: 5
