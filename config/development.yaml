@@ -1,0 +1,26 @@
+# Development environment configuration
+# Overrides for development environment
+
+environment: "development"
+debug: true
+
+# Development logging - more verbose
+logging:
+  level: "DEBUG"
+  format: "colored"
+  console_format: "colored"
+  enable_file_logging: false  # Disable file logging in dev
+  include_thread_info: true
+
+# Development translation settings - more permissive
+translation:
+  max_concurrent_requests: 5  # Lower concurrency for development
+  max_retries: 2  # Fewer retries for faster feedback
+  retry_delay_seconds: 0.5  # Shorter delays
+  enable_rate_limiting: false  # Disable rate limiting for easier testing
+
+# Development observability - simplified
+observability:
+  enable_metrics: false  # Disable metrics collection in dev
+  enable_tracing: false  # Disable tracing in dev
+  enable_health_checks: false  # Disable health checks in dev

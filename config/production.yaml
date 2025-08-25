@@ -1,0 +1,48 @@
+# Production environment configuration
+# Overrides for production environment
+
+environment: "production"
+debug: false
+
+# Production logging - structured and comprehensive
+logging:
+  level: "INFO"
+  format: "json"
+  enable_file_logging: true
+  log_file: "/var/log/ai-translation/translation.log"
+  max_file_size_mb: 500  # Larger log files in production
+  backup_count: 10
+  console_format: "json"
+  include_process_info: true
+  enable_sentry: true  # Enable error tracking in production
+  # sentry_dsn: "your-sentry-dsn-here"  # Set via environment variable
+
+# Production translation settings - optimized for performance
+translation:
+  max_concurrent_requests: 20  # Higher concurrency for production load
+  max_batch_size: 500  # Larger batches for efficiency
+  max_retries: 5  # More retries for reliability
+  retry_delay_seconds: 2.0  # Longer delays to respect rate limits
+  enable_rate_limiting: true
+  enable_provider_fallback: true
+
+# Production database - enable caching for performance
+database:
+  enable_database: true
+  # database_url: "postgresql://user:pass@localhost/translation_db"  # Set via env var
+  max_connections: 50
+  min_connections: 5
+  enable_result_caching: true
+  cache_ttl_seconds: 7200  # 2 hours
+  max_cache_size: 100000
+
+# Production observability - full monitoring
+observability:
+  enable_metrics: true
+  metrics_port: 9090
+  enable_tracing: true
+  # tracing_endpoint: "http://jaeger:14268/api/traces"  # Set via env var
+  tracing_sample_rate: 0.01  # Lower sample rate for performance
+  enable_health_checks: true
+  health_check_interval_seconds: 60  # Less frequent in production
+  health_check_timeout_seconds: 10

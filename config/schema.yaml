@@ -1,0 +1,224 @@
+# JSON Schema for configuration validation
+# This file documents the expected structure of configuration files
+
+schema_version: "2.0.0"
+description: "Configuration schema for AI Translation Framework"
+
+# Main application settings
+app_settings:
+  app_name:
+    type: string
+    description: "Application name"
+    default: "AI Translation Framework"
+  
+  app_version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    description: "Semantic version number"
+  
+  environment:
+    type: string
+    enum: ["development", "staging", "production", "testing"]
+    description: "Deployment environment"
+  
+  debug:
+    type: boolean
+    description: "Enable debug mode"
+    default: false
+
+# Logging configuration
+logging_settings:
+  level:
+    type: string
+    enum: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    description: "Log level"
+    default: "INFO"
+  
+  format:
+    type: string
+    enum: ["json", "text", "colored"]
+    description: "Log output format"
+    default: "json"
+  
+  enable_file_logging:
+    type: boolean
+    description: "Enable logging to file"
+    default: true
+  
+  log_file:
+    type: string
+    description: "Path to log file"
+    nullable: true
+  
+  max_file_size_mb:
+    type: integer
+    minimum: 1
+    maximum: 1000
+    description: "Maximum log file size in MB"
+    default: 100
+  
+  backup_count:
+    type: integer
+    minimum: 1
+    maximum: 50
+    description: "Number of backup log files to keep"
+    default: 5
+
+# Translation configuration
+translation_settings:
+  default_source_language:
+    type: string
+    description: "Default source language code"
+    default: "auto"
+  
+  default_target_language:
+    type: string
+    description: "Default target language code"
+    default: "vi"
+  
+  default_style:
+    type: string
+    enum: ["formal", "casual", "literary", "technical", "conversational", "game_dialogue", "subtitle"]
+    description: "Default translation style"
+    default: "conversational"
+  
+  default_timeout_seconds:
+    type: integer
+    minimum: 5
+    maximum: 300
+    description: "Default request timeout in seconds"
+    default: 30
+  
+  max_concurrent_requests:
+    type: integer
+    minimum: 1
+    maximum: 100
+    description: "Maximum concurrent translation requests"
+    default: 10
+  
+  max_batch_size:
+    type: integer
+    minimum: 1
+    maximum: 1000
+    description: "Maximum number of requests in a batch"
+    default: 100
+  
+  max_retries:
+    type: integer
+    minimum: 0
+    maximum: 10
+    description: "Maximum retry attempts"
+    default: 3
+
+# Provider configuration schema
+provider_schema:
+  name:
+    type: string
+    description: "Unique provider name"
+    pattern: "^[a-zA-Z0-9_-]+$"
+  
+  type:
+    type: string
+    enum: ["openrouter", "openai", "anthropic", "azure_openai", "google_translate", "custom"]
+    description: "Provider type"
+  
+  display_name:
+    type: string
+    description: "Human-readable provider name"
+    nullable: true
+  
+  base_url:
+    type: string
+    format: uri
+    description: "Provider API base URL"
+  
+  timeout_seconds:
+    type: integer
+    minimum: 5
+    maximum: 300
+    description: "Request timeout in seconds"
+    default: 30
+  
+  auth_type:
+    type: string
+    enum: ["api_key", "bearer_token", "oauth2", "service_account"]
+    description: "Authentication method"
+    default: "api_key"
+  
+  enabled:
+    type: boolean
+    description: "Whether provider is enabled"
+    default: true
+  
+  priority:
+    type: integer
+    minimum: 1
+    maximum: 10
+    description: "Provider priority (1=highest)"
+    default: 5
+
+# Model configuration schema
+model_schema:
+  name:
+    type: string
+    description: "Model identifier"
+  
+  display_name:
+    type: string
+    description: "Human-readable model name"
+    nullable: true
+  
+  max_input_tokens:
+    type: integer
+    minimum: 1
+    description: "Maximum input tokens"
+    nullable: true
+  
+  max_output_tokens:
+    type: integer
+    minimum: 1
+    description: "Maximum output tokens"
+    nullable: true
+  
+  supports_streaming:
+    type: boolean
+    description: "Whether model supports streaming"
+    default: false
+  
+  input_cost_per_1k_tokens:
+    type: number
+    minimum: 0
+    description: "Cost per 1K input tokens in USD"
+    nullable: true
+  
+  output_cost_per_1k_tokens:
+    type: number
+    minimum: 0
+    description: "Cost per 1K output tokens in USD"
+    nullable: true
+
+# Validation rules
+validation_rules:
+  - name: "provider_name_unique"
+    description: "Provider names must be unique"
+    rule: "All provider names in the providers list must be unique"
+  
+  - name: "default_provider_exists"
+    description: "Default provider must exist"
+    rule: "If default_provider is specified, it must exist in the providers list"
+  
+  - name: "fallback_providers_exist"
+    description: "Fallback providers must exist"
+    rule: "All providers in fallback_order must exist in the providers list"
+  
+  - name: "model_names_unique_per_provider"
+    description: "Model names must be unique within each provider"
+    rule: "Each provider's models must have unique names"
+  
+  - name: "default_model_exists"
+    description: "Default model must exist"
+    rule: "If a provider specifies default_model, it must exist in that provider's models list"
+  
+  - name: "timeout_consistency"
+    description: "Provider timeouts should not exceed translation timeout"
+    rule: "Provider timeout_seconds should be <= translation.default_timeout_seconds"
