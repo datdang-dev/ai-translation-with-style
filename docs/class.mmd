@@ -1,0 +1,136 @@
+classDiagram
+    %% ===== Applet Layer =====
+    class TranslationOrchestrator {
+        +translate_renpy(requests: List[TranslationRequest]) Dict
+        +translate_json(requests: List[TranslationRequest]) Dict
+    }
+
+    %% ===== Middleware Layer =====
+    class TranslationManager {
+        -batch_size: int
+        +process_batch(requests: List[TranslationRequest]) List[TranslationResult]
+    }
+
+    class RequestManager {
+        -max_workers: int
+        +process_request(request: TranslationRequest) TranslationResult
+    }
+
+    class ResiliencyManager {
+        +max_retries: int
+        +retry_delay: float
+        +execute_with_retry(func: Callable, *args) Any
+    }
+
+    %% ===== Service Layer =====
+    class StandardizerService {
+        +standardize_renpy(text: str) List[Chunk]
+        +reconstruct_renpy(chunks: List[Chunk]) str
+        +standardize_json(data: Any) Dict
+        +reconstruct_json(standardized: Dict) Any
+    }
+
+    class RenpyStandardizer {
+        +standardize(text: str) List[Chunk]
+        +reconstruct(chunks: List[Chunk]) str
+    }
+
+    class JsonStandardizer {
+        +standardize(data: Any) Dict
+        +reconstruct(standardized: Dict) Any
+    }
+
+    class ProviderOrchestrator {
+        -providers: List[ProviderClient]
+        +translate(text: List[str], target_lang: str) List[str]
+        +get_available_providers() List[str]
+    }
+
+    class OpenRouterClient {
+        -api_key: str
+        -base_url: str
+        +translate(text: List[str], target_lang: str) List[str]
+        -build_payload(text: List[str]) Dict
+    }
+
+    class GoogleTranslateClient {
+        -client: Any
+        +translate(text: List[str], target_lang: str) List[str]
+    }
+
+    class ServerFaultHandler {
+        +handle_rate_limit() bool
+        +handle_retry(attempt: int) bool
+        +handle_fallback(provider: str) str
+    }
+
+    class HealthMonitor {
+        -provider_stats: Dict
+        +update_stats(provider: str, success: bool, latency: float)
+        +get_best_provider() str
+        +get_health_status() Dict
+    }
+
+    class CacheService {
+        -redis_client: Redis
+        +get(key: str) Optional[str]
+        +set(key: str, value: str, ttl: int)
+        +generate_key(text: str, target_lang: str) str
+    }
+
+    class ValidatorService {
+        +validate_translation(original: str, translated: str) bool
+        +validate_length(original: str, translated: str) bool
+        +validate_special_chars(original: str, translated: str) bool
+    }
+
+    %% ===== Data Models =====
+    class TranslationRequest {
+        +text: str
+        +source_lang: str
+        +target_lang: str
+        +format: str
+        +style: str
+        +provider: str
+    }
+
+    class TranslationResult {
+        +original: str
+        +translated: str
+        +provider: str
+        +from_cache: bool
+        +processing_time: float
+    }
+
+    class Chunk {
+        +is_text: bool
+        +original: str
+        +standard: str
+        +translation: str
+    }
+
+    %% ===== Relationships =====
+    TranslationOrchestrator --> TranslationManager
+    TranslationManager --> RequestManager
+    RequestManager --> ResiliencyManager
+    
+    RequestManager --> StandardizerService
+    RequestManager --> ProviderOrchestrator
+    RequestManager --> CacheService
+    RequestManager --> ValidatorService
+    
+    StandardizerService --> RenpyStandardizer
+    StandardizerService --> JsonStandardizer
+    
+    ProviderOrchestrator --> OpenRouterClient
+    ProviderOrchestrator --> GoogleTranslateClient
+    ProviderOrchestrator --> HealthMonitor
+    
+    ResiliencyManager --> ServerFaultHandler
+    
+    ServerFaultHandler --> HealthMonitor
+    HealthMonitor --> ProviderOrchestrator
+
+    TranslationRequest --> RequestManager
+    TranslationResult --> RequestManager
+    Chunk --> RenpyStandardizer

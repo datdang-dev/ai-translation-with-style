@@ -1,0 +1,83 @@
+graph TB
+
+    %% ===== Applet Layer =====
+    subgraph "Applet Layer"
+        A1[Translation Orchestrator]
+    end
+
+    %% ===== Middleware Layer =====
+    subgraph "Middleware Layer"
+        M1[Translation Manager]
+        M2[Job Scheduler]
+        M3[Request Manager]
+        M4[Resiliency Manager]
+    end
+
+    %% ===== Service Layer =====
+    subgraph "Service Layer"
+        %% Core Services
+        S1[Key Service]
+        S3[Logging Service]
+        S4[Cache Service]
+        
+        %% Standardizer Pipeline
+        STD0[Standardizer Service]
+        STD1[Renpy Standardizer]
+        STD2[Other Standardizer]
+
+        %% Validator
+        V0[Validator Service]
+
+        %% Resiliency & Health
+        H0[Health Monitor]
+        F1[Server Fault Handler]
+        
+        %% Providers
+        P0[Provider Orchestrator]
+        P1[OpenRouter Client]
+        P2[Other Provider Client]
+        P3[Resilient OpenRouter Client]
+        P4[Resilient Other Provider Client]
+    end
+
+    %% ===== Data Flow =====
+    A1 --> M1
+    M2 --> M1
+
+    M1 --> S1
+    M1 --> M3
+
+    M3 --> S3
+    M3 --> S4
+    M3 --> STD0
+    STD0 --> STD1
+    STD0 --> STD2
+    
+    M3 --> P0
+    STD0 -.-> P0
+    
+    P0 --> H0
+    H0 -.-> P0
+    
+    %% === KEY INTEGRATION: Resiliency Manager CONFIGURES the Unified Handler ===
+    M4 --> F1
+    
+    %% === The Unified Handler APPLIES TO Clients ===
+    F1 --> P3
+    F1 --> P4
+    
+    %% === Provider Orchestrator uses RESILIENT Clients ===
+    P0 --> P3
+    P0 --> P4
+    
+    %% === Resilient Clients wrap Base Clients ===
+    P3 --> P1
+    P4 --> P2
+    
+    P0 --> V0
+
+    %% ===== Configuration & Feedback =====
+    F1 -.-> H0
+    P1 -.-> H0
+    P2 -.-> H0
+    S4 -.-> P0
