@@ -1,29 +1,13 @@
 """
-Translation Service
-Handles both single file and batch translation of files
+Translation Service Package
+New architecture with format-aware processing
 """
 
-from services.translation_service.translation_service import (
-    run_translation,
-    run_batch_translation,
-    run_batch_translation_from_directory
-)
-from services.translation_service.translation_core import TranslationCore
-from services.translation_service.batch_processor import BatchProcessor
-from services.translation_service.models import BatchJob
-from services.translation_service.config_loader import ConfigurationLoader, load_config
-from services.translation_service.service_initializer import ServiceInitializer
-from services.translation_service.json_parser import JSONParser
+from .format_manager import FormatManager, FormatValidator, JSONValidator, TXTValidator
 
 __all__ = [
-    "run_translation",
-    "run_batch_translation",
-    "run_batch_translation_from_directory",
-    "TranslationCore",
-    "BatchProcessor",
-    "BatchJob",
-    "ConfigurationLoader",
-    "load_config",
-    "ServiceInitializer",
-    "JSONParser"
+    'FormatManager',
+    'FormatValidator', 
+    'JSONValidator',
+    'TXTValidator'
 ]

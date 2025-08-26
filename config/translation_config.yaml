@@ -1,0 +1,72 @@
+# Translation Service Configuration
+# This file configures the translation service behavior and format preferences
+
+# Input/Output Format Configuration
+formats:
+  # Default format for unknown file extensions
+  default: "json"
+  
+  # Supported formats and their settings
+  supported:
+    json:
+      enabled: true
+      priority: 1
+      # JSON-specific validation rules
+      validation:
+        require_string_values: true
+        allow_empty_keys: false
+        max_key_length: 100
+        max_value_length: 10000
+    
+    txt:
+      enabled: true
+      priority: 2
+      # Text-specific validation rules
+      validation:
+        max_line_length: 1000
+        allow_empty_lines: true
+        encoding: "utf-8"
+    
+    text:
+      enabled: true
+      priority: 3
+      # Same as txt format
+      validation:
+        max_line_length: 1000
+        allow_empty_lines: true
+        encoding: "utf-8"
+
+# Translation Settings
+translation:
+  # Batch processing settings
+  batch:
+    max_concurrent: 1
+    job_delay: 10.0
+    retry_attempts: 3
+    retry_delay: 2.0
+  
+  # Quality validation
+  validation:
+    # Enable format-specific validation
+    enable_format_validation: true
+    # Enable translation quality checks
+    enable_quality_checks: true
+    # Minimum translation confidence
+    min_confidence: 0.7
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "detailed"
+  # Enable format-specific logging
+  log_format_operations: true
+  log_validation_results: true
+
+# Error Handling
+error_handling:
+  # Continue processing on format errors
+  continue_on_format_error: false
+  # Log detailed error information
+  log_detailed_errors: true
+  # Fallback to default format on error
+  fallback_to_default: true

@@ -1,17 +1,16 @@
 """
 Translation Orchestrator Service
-Direct interface to the new service-based implementation
+New architecture interface
 """
 
-from services.translation_service.translation_service import (
-    run_translation,
-    run_batch_translation,
+# Import from the new architecture
+from applet.translation_orchestrator import (
+    TranslationOrchestrator,
     run_batch_translation_from_directory
 )
 
-# Export the functions directly
+# Export all functions
 __all__ = [
-    "run_translation",
-    "run_batch_translation",
+    "TranslationOrchestrator",
     "run_batch_translation_from_directory"
 ]
