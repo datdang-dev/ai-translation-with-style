@@ -1,0 +1,6 @@
+{
+  "api_keys": {
+    "openrouter": "your_openrouter_api_key_here",
+    "google_translate": "your_google_api_key_here_optional"
+  }
+}

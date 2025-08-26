@@ -1,0 +1,98 @@
+# AI Translation Service Configuration
+# This file contains all configuration settings for the translation service
+
+# Translation providers configuration
+providers:
+  # OpenRouter (Primary LLM provider)
+  openrouter:
+    enabled: true
+    priority: 1  # Lower number = higher priority
+    max_requests_per_minute: 20
+    timeout: 30.0
+    config:
+      model: "anthropic/claude-3.5-sonnet"
+      max_tokens: 4000
+      temperature: 0.3
+      base_url: "https://openrouter.ai/api/v1/chat/completions"
+
+  # Google Translate (Fallback provider)
+  google_translate:
+    enabled: true
+    priority: 2
+    max_requests_per_minute: 100
+    timeout: 10.0
+    config:
+      use_free_service: true  # Set to false if you have API key
+
+# Resiliency and fault tolerance configuration
+resiliency:
+  max_retries: 3
+  retry_delay: 1.0
+  retry_backoff_multiplier: 2.0
+  circuit_breaker_threshold: 5
+  circuit_breaker_timeout: 60.0
+  request_timeout: 30.0
+
+# Caching configuration
+cache:
+  enabled: true
+  ttl_seconds: 3600  # 1 hour
+  max_size: 1000
+  backend: "memory"  # Options: memory, redis
+  # redis_url: "redis://localhost:6379/0"  # Uncomment for Redis
+
+# Processing configuration
+processing:
+  batch_size: 10
+  max_concurrent: 3
+  max_workers: 10
+  job_delay: 0.1
+
+# Logging configuration
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "structured"  # Options: structured, simple
+  file: "logs/translation.log"
+  max_file_size: "10MB"
+  backup_count: 5
+
+# Health monitoring configuration
+health_monitoring:
+  enabled: true
+  check_interval: 60.0  # seconds
+  timeout: 10.0  # seconds
+  failure_threshold: 3
+
+# Validation configuration
+validation:
+  enabled: true
+  length_validation:
+    min_ratio: 0.3
+    max_ratio: 3.0
+    allow_empty: false
+  special_chars_validation:
+    enabled: true
+    preserve_patterns:
+      - "\\{[^}]*\\}"      # {variables}
+      - "\\[[^\\]]*\\]"    # [tags]
+      - "<[^>]*>"          # <html tags>
+      - "%[sd%]"           # %s, %d, %%
+      - "\\$\\w+"          # $variables
+
+# Format-specific settings
+formats:
+  renpy:
+    preserve_formatting: true
+    extract_dialogue_only: true
+    handle_character_names: true
+  
+  json:
+    translatable_keys:
+      - "text"
+      - "content"
+      - "message"
+      - "description"
+      - "title"
+      - "label"
+      - "dialogue"
+    preserve_structure: true
