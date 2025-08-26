@@ -5,8 +5,8 @@ import os
 # Add current directory to sys.path to import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import orchestrator
-from applet.orchestrator import run_translation
+# Import orchestrator from the new service location
+from applet.translation_orchestrator_service import run_translation
 
 # Configure paths
 input_path = "testing_playground/input.json"

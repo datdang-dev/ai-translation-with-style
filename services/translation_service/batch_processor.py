@@ -1,6 +1,5 @@
 """
-Batch Translation Orchestrator
-Handles concurrent translation of multiple files
+Batch processing functionality for translations
 """
 
 import asyncio
@@ -8,33 +7,20 @@ import json
 import time
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
-from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 from services.common.logger import get_logger
-from applet.orchestrator import TranslationOrchestrator
+from services.translation_service.models import BatchJob
+from services.translation_service.translation_core import TranslationCore
 
-@dataclass
-class BatchJob:
-    """Represents a single translation job"""
-    input_path: str
-    output_path: str
-    status: str = "pending"  # pending, processing, completed, failed
-    error: str = None
-    start_time: float = None
-    end_time: float = None
-    result: Dict[str, Any] = None
-    # Use monotonic clock for reliable duration calculations
-    start_monotonic: float = None
-    end_monotonic: float = None
 
-class BatchTranslationOrchestrator:
+class BatchProcessor:
     """Handles batch translation of multiple files"""
     
     def __init__(self, config_path: str, max_concurrent: int = 3, job_delay: float = 10.0):
         """
-        Initialize batch orchestrator
+        Initialize batch processor
         :param config_path: Path to configuration file
         :param max_concurrent: Maximum concurrent translations
         :param job_delay: Delay in seconds between jobs to avoid rate limiting
@@ -42,7 +28,7 @@ class BatchTranslationOrchestrator:
         self.config_path = config_path
         self.max_concurrent = max_concurrent
         self.job_delay = job_delay
-        self.logger = get_logger("BatchTranslationOrchestrator")
+        self.logger = get_logger("BatchProcessor")
         self.jobs: List[BatchJob] = []
         self.semaphore = asyncio.Semaphore(max_concurrent)
         
@@ -93,11 +79,11 @@ class BatchTranslationOrchestrator:
                 self.logger.info(f"   ├── File: {job.input_path}")
                 self.logger.info(f"   └── PID: {os.getpid()}")
                 
-                # Create orchestrator for this job
-                orchestrator = TranslationOrchestrator(self.config_path)
+                # Create core translator for this job
+                translator = TranslationCore(self.config_path)
                 
                 # Translate the file
-                success = await orchestrator.translate_file(job.input_path, job.output_path)
+                success = await translator.translate_file(job.input_path, job.output_path)
                 
                 job.end_time = time.time()
                 job.end_monotonic = time.monotonic()
@@ -270,7 +256,7 @@ class BatchTranslationOrchestrator:
             ]
         }
     
-    def get_job_status(self, input_path: str) -> BatchJob:
+    def get_job_status(self, input_path: str) -> Optional[BatchJob]:
         """Get status of a specific job"""
         for job in self.jobs:
             if job.input_path == input_path:
@@ -281,57 +267,3 @@ class BatchTranslationOrchestrator:
         """Clear all jobs"""
         self.jobs.clear()
         self.logger.info("Cleared all jobs")
-
-# Utility function for batch processing
-async def run_batch_translation(
-    config_path: str,
-    input_files: List[str],
-    output_files: List[str],
-    max_concurrent: int = 3,
-    job_delay: float = 10.0
-) -> Dict[str, Any]:
-    """
-    Utility function to run batch translation
-    :param config_path: Configuration file path
-    :param input_files: List of input file paths
-    :param output_files: List of output file paths
-    :param max_concurrent: Maximum concurrent translations
-    :return: Processing summary
-    """
-    if len(input_files) != len(output_files):
-        raise ValueError("Input and output file lists must have the same length")
-    
-    orchestrator = BatchTranslationOrchestrator(config_path, max_concurrent, job_delay)
-    
-    # Add jobs
-    for input_file, output_file in zip(input_files, output_files):
-        orchestrator.add_job(input_file, output_file)
-    
-    # Process all jobs
-    return await orchestrator.process_all_jobs()
-
-# Utility function for directory-based batch processing
-async def run_batch_translation_from_directory(
-    config_path: str,
-    input_dir: str,
-    output_dir: str,
-    pattern: str = "*.json",
-    max_concurrent: int = 3,
-    job_delay: float = 10.0
-) -> Dict[str, Any]:
-    """
-    Utility function to run batch translation from directory
-    :param config_path: Configuration file path
-    :param input_dir: Input directory path
-    :param output_dir: Output directory path
-    :param pattern: File pattern to match
-    :param max_concurrent: Maximum concurrent translations
-    :return: Processing summary
-    """
-    orchestrator = BatchTranslationOrchestrator(config_path, max_concurrent, job_delay)
-    
-    # Add jobs from directory
-    orchestrator.add_jobs_from_directory(input_dir, output_dir, pattern)
-    
-    # Process all jobs
-    return await orchestrator.process_all_jobs()
