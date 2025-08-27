@@ -102,8 +102,12 @@ class TranslationManager:
         """Process requests concurrently"""
         async def process_with_semaphore(request):
             async with self.semaphore:
+                # Create a wrapper function to properly handle the method call
+                async def process_request_wrapper(request_param):
+                    return await self.request_manager.process_request(request_param)
+                
                 return await self.resiliency_manager.execute_with_retry(
-                    self.request_manager.process_request,
+                    process_request_wrapper,
                     "request_manager",
                     request
                 )
