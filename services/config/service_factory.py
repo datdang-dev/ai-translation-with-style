@@ -122,18 +122,25 @@ class ServiceFactory:
                 self.logger.warning("OpenRouter API key not found, provider will not be available")
                 return None
             
+            # Get preset configuration for this provider
+            provider_config = config.config if isinstance(config.config, dict) else {}
+            preset_name = provider_config.get('preset', 'preset_translation')
+            preset_config = self.config_manager.get_preset(preset_name)
+            
             return OpenRouterClient(
                 api_key=api_key,
-                config=config.config
+                config=provider_config,
+                preset_config=preset_config
             )
         
         elif name == 'google_translate':
             api_key = api_keys.get('google_translate') or api_keys.get('google_api_key')
             # Google Translate can work without API key (free service)
             
+            provider_config = config.config if isinstance(config.config, dict) else {}
             return GoogleTranslateClient(
                 api_key=api_key,
-                config=config.config
+                config=provider_config
             )
         
         else:
@@ -167,7 +174,8 @@ class ServiceFactory:
                 request_manager=self.get_request_manager(),
                 resiliency_manager=self.get_resiliency_manager(),
                 batch_size=processing_config.get('batch_size', 10),
-                max_concurrent=processing_config.get('max_concurrent', 3)
+                max_concurrent=processing_config.get('max_concurrent', 3),
+                job_delay=processing_config.get('job_delay', 0.0)
             )
             
             self._instances['translation_manager'] = translation_manager

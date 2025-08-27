@@ -504,7 +504,8 @@ async def run_batch_translation_from_directory(
         
         # Update configuration for compatibility
         orchestrator.translation_manager.update_configuration(
-            max_concurrent=max_concurrent
+            max_concurrent=max_concurrent,
+            job_delay=job_delay
         )
         
         # Determine format from pattern

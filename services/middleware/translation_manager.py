@@ -11,6 +11,7 @@ from services.models import (
 )
 from services.middleware.request_manager import RequestManager
 from services.resiliency import ResiliencyManager
+from services.infrastructure.job_scheduler import JobScheduler, JobStatus
 from services.common.logger import get_logger
 
 
@@ -21,12 +22,20 @@ class TranslationManager:
                  request_manager: RequestManager = None,
                  resiliency_manager: ResiliencyManager = None,
                  batch_size: int = 10,
-                 max_concurrent: int = 3):
+                 max_concurrent: int = 3,
+                 job_delay: float = 0.0):
         
         self.request_manager = request_manager or RequestManager()
         self.resiliency_manager = resiliency_manager or ResiliencyManager()
         self.batch_size = batch_size
         self.max_concurrent = max_concurrent
+        self.job_delay = job_delay
+        
+        # Initialize job scheduler
+        self.job_scheduler = JobScheduler(
+            max_concurrent=max_concurrent,
+            default_delay=job_delay
+        )
         
         self.logger = get_logger("TranslationManager")
         
@@ -213,6 +222,132 @@ class TranslationManager:
         
         return await self._process_batch_with_result(requests, "text_batch")
     
+    async def process_batch(self, requests: List[TranslationRequest]) -> List[TranslationResult]:
+        """Process a batch of translation requests using job scheduler"""
+        self.logger.info(f"🚀 Processing batch of {len(requests)} requests with job scheduler")
+        
+        # Start job scheduler if not running
+        await self.job_scheduler.start()
+        
+        # Create jobs for each request
+        job_ids = []
+        for i, request in enumerate(requests):
+            job_id = f"translation_job_{request.request_id}_{i}"
+            priority = i  # Sequential priority
+            delay = i * self.job_delay  # Stagger jobs by delay
+            
+            self.job_scheduler.add_job(
+                job_id,
+                self._process_single_request,
+                request,  # Pass request as argument
+                priority=priority,
+                delay=delay
+            )
+            job_ids.append(job_id)
+            
+            self.logger.info(f"📋 Job {job_id} queued (priority: {priority}, delay: {delay:.1f}s)")
+        
+        # Log initial queue status
+        self._log_detailed_queue_status()
+        
+        # Wait for all jobs to complete
+        await self.job_scheduler.wait_for_completion()
+        
+        # Collect results
+        results = []
+        for job_id in job_ids:
+            job = self.job_scheduler.jobs[job_id]
+            if job.status == JobStatus.COMPLETED:
+                results.append(job.result)
+                self.logger.info(f"✅ Job {job_id} completed successfully")
+            else:
+                # Create error result
+                error_result = TranslationResult(
+                    original="",
+                    translated="",
+                    provider="unknown",
+                    validation_passed=False,
+                    validation_details={"error": str(job.error) if job.error else "Job failed"},
+                    request_id=job_id
+                )
+                results.append(error_result)
+                self.logger.error(f"❌ Job {job_id} failed: {job.error}")
+        
+        # Log final statistics
+        self._log_batch_completion_stats(job_ids)
+        
+        # Stop job scheduler
+        await self.job_scheduler.stop()
+        
+        return results
+    
+    async def _process_single_request(self, request: TranslationRequest) -> TranslationResult:
+        """Process a single translation request"""
+        self.logger.info(f"🔄 Processing request {request.request_id}")
+        
+        start_time = time.time()
+        
+        # Use resiliency manager for the actual translation
+        result = await self.resiliency_manager.execute_with_retry(
+            func=self.request_manager.process_request,
+            args=(request,),
+            operation_name="request_manager"
+        )
+        
+        processing_time = time.time() - start_time
+        result.processing_time = processing_time
+        
+        self.logger.info(f"✅ Request {request.request_id} completed in {processing_time:.2f}s")
+        
+        return result
+    
+    def _log_detailed_queue_status(self):
+        """Log detailed queue status with job information"""
+        status = self.job_scheduler.get_detailed_status()
+        
+        self.logger.info(f"📊 QUEUE STATUS OVERVIEW:")
+        self.logger.info(f"   Pending: {len(status['jobs_by_status']['pending'])}")
+        self.logger.info(f"   Waiting: {len(status['jobs_by_status']['waiting'])}")  
+        self.logger.info(f"   Running: {len(status['jobs_by_status']['running'])}")
+        self.logger.info(f"   Completed: {len(status['jobs_by_status']['completed'])}")
+        
+        # Log pending jobs with details
+        if status['jobs_by_status']['pending']:
+            self.logger.info("📋 PENDING JOBS:")
+            for job in status['jobs_by_status']['pending'][:5]:  # Show first 5
+                self.logger.info(f"   - {job['job_id']} (priority: {job['priority']}, delay: {job['delay']:.1f}s)")
+        
+        # Log waiting jobs
+        if status['jobs_by_status']['waiting']:
+            self.logger.info("⏳ WAITING JOBS:")
+            for job in status['jobs_by_status']['waiting'][:3]:  # Show first 3
+                self.logger.info(f"   - {job['job_id']} (waiting for delay)")
+        
+        # Log running jobs
+        if status['jobs_by_status']['running']:
+            self.logger.info("🏃 RUNNING JOBS:")
+            for job in status['jobs_by_status']['running']:
+                duration = time.time() - job['started_at'] if job['started_at'] else 0
+                self.logger.info(f"   - {job['job_id']} (running for {duration:.1f}s)")
+    
+    def _log_batch_completion_stats(self, job_ids: List[str]):
+        """Log batch completion statistics"""
+        status = self.job_scheduler.get_detailed_status()
+        
+        completed = len(status['jobs_by_status']['completed'])
+        failed = len(status['jobs_by_status']['failed'])
+        total = len(job_ids)
+        
+        self.logger.info(f"📊 BATCH COMPLETION SUMMARY:")
+        self.logger.info(f"   Total Jobs: {total}")
+        self.logger.info(f"   Completed: {completed}")
+        self.logger.info(f"   Failed: {failed}")
+        self.logger.info(f"   Success Rate: {(completed/total*100):.1f}%" if total > 0 else "N/A")
+        
+        if status['statistics']['total_processing_time'] > 0:
+            avg_time = status['statistics']['total_processing_time'] / completed if completed > 0 else 0
+            self.logger.info(f"   Average Processing Time: {avg_time:.2f}s")
+    
     async def _process_batch_with_result(self, 
                                        requests: List[TranslationRequest], 
                                        batch_type: str) -> BatchResult:
@@ -268,6 +403,20 @@ class TranslationManager:
         
         return batch_result
     
+    def update_configuration(self, max_concurrent: int = None, job_delay: float = None):
+        """Update configuration parameters"""
+        if max_concurrent is not None:
+            old_concurrent = self.max_concurrent
+            self.max_concurrent = max_concurrent
+            self.semaphore = asyncio.Semaphore(max_concurrent)
+            self.job_scheduler.update_max_concurrent(max_concurrent)
+            self.logger.info(f"Updated max_concurrent from {old_concurrent} to {max_concurrent}")
+        
+        if job_delay is not None:
+            old_delay = self.job_delay
+            self.job_delay = job_delay
+            self.logger.info(f"Updated job_delay from {old_delay} to {job_delay}")
+    
     def get_status(self) -> Dict[str, Any]:
         """Get current manager status"""
         pipeline_health = self.request_manager.get_pipeline_health()
@@ -297,16 +446,24 @@ class TranslationManager:
     
     def update_configuration(self, 
                            batch_size: int = None,
-                           max_concurrent: int = None):
+                           max_concurrent: int = None,
+                           job_delay: float = None):
         """Update manager configuration"""
         if batch_size is not None:
             self.batch_size = batch_size
             self.logger.info(f"Updated batch size to {batch_size}")
         
         if max_concurrent is not None:
+            old_concurrent = self.max_concurrent
             self.max_concurrent = max_concurrent
             self.semaphore = asyncio.Semaphore(max_concurrent)
-            self.logger.info(f"Updated max concurrent to {max_concurrent}")
+            self.job_scheduler.update_max_concurrent(max_concurrent)
+            self.logger.info(f"Updated max concurrent from {old_concurrent} to {max_concurrent}")
+        
+        if job_delay is not None:
+            old_delay = self.job_delay
+            self.job_delay = job_delay
+            self.logger.info(f"Updated job_delay from {old_delay} to {job_delay}")
     
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get detailed performance metrics"""

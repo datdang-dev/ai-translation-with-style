@@ -10,9 +10,7 @@ providers:
     max_requests_per_minute: 20
     timeout: 30.0
     config:
-      model: "google/gemini-2.0-flash-exp:free"
-      max_tokens: 4000
-      temperature: 0.3
+      preset: "preset_translation"  # Preset JSON file name (without .json)
       base_url: "https://openrouter.ai/api/v1/chat/completions"
 
   # Google Translate (Fallback provider)
@@ -43,10 +41,10 @@ cache:
 
 # Processing configuration
 processing:
-  batch_size: 10
+  batch_size: 5  # Giảm batch size để phù hợp với provider limits
   max_concurrent: 3
   max_workers: 10
-  job_delay: 0.1
+  job_delay: 2.0  # Delay between jobs in seconds
 
 # Logging configuration
 logging:
