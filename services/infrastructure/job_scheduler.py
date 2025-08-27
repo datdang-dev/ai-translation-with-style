@@ -124,6 +124,14 @@ class JobScheduler:
         
         return job
     
+    def add_job_with_start_time(self, job_id: str, task: Callable, start_time: float, *args,
+                               priority: int = 0, **kwargs) -> Job:
+        """Add a job that starts at a specific time"""
+        current_time = time.time()
+        delay = max(0, start_time - current_time)
+        
+        return self.add_job(job_id, task, *args, priority=priority, delay=delay, **kwargs)
+    
     def get_job_status(self, job_id: str) -> Optional[JobStatus]:
         """Get status of a specific job"""
         job = self.jobs.get(job_id)
@@ -201,7 +209,7 @@ class JobScheduler:
             self.logger.info("Job scheduler loop ended")
     
     async def _process_queue(self):
-        """Process pending jobs based on concurrency limits"""
+        """Process pending jobs based on concurrency limits and timing"""
         # Clean up completed tasks
         completed_tasks = []
         for job_id, task in self.running_jobs.items():
@@ -211,29 +219,28 @@ class JobScheduler:
         for job_id in completed_tasks:
             await self._handle_completed_job(job_id)
         
-        # Start new jobs if we have capacity
-        available_slots = self.max_concurrent - len(self.running_jobs)
+        # Start new jobs based on timing, not completion
+        current_time = time.time()
+        jobs_to_start = []
         
-        if available_slots > 0 and self.pending_queue:
-            jobs_to_start = []
-            current_time = time.time()
+        # Find jobs that are ready to run (delay has passed)
+        for job_id in self.pending_queue[:]:
+            job = self.jobs[job_id]
+            wait_time = job.created_at + job.delay - current_time
             
-            # Find jobs that are ready to run (delay has passed)
-            for job_id in self.pending_queue[:available_slots]:
-                job = self.jobs[job_id]
-                wait_time = job.created_at + job.delay - current_time
-                
-                if wait_time <= 0:
-                    # Job is ready to run
-                    jobs_to_start.append(job_id)
-                else:
-                    # Job is still waiting
-                    job.status = JobStatus.WAITING
-                    self.logger.debug(f"⏳ Job {job_id} waiting {wait_time:.1f}s more")
-            
-            # Start ready jobs
-            for job_id in jobs_to_start:
-                await self._start_job(job_id)
+            if wait_time <= 0:
+                # Job is ready to run
+                jobs_to_start.append(job_id)
+                # Remove from pending queue immediately
+                self.pending_queue.remove(job_id)
+            else:
+                # Job is still waiting
+                job.status = JobStatus.WAITING
+                self.logger.debug(f"⏳ Job {job_id} waiting {wait_time:.1f}s more")
+        
+        # Start all ready jobs (don't wait for completion)
+        for job_id in jobs_to_start:
+            await self._start_job(job_id)
     
     async def _start_job(self, job_id: str):
         """Start a specific job"""
@@ -241,10 +248,7 @@ class JobScheduler:
         job.status = JobStatus.RUNNING
         job.started_at = time.time()
         
-        # Remove from pending queue
-        self.pending_queue.remove(job_id)
-        
-        # Create and start task
+        # Create and start task (no concurrency limit check)
         task = asyncio.create_task(self._execute_job(job))
         self.running_jobs[job_id] = task
         
