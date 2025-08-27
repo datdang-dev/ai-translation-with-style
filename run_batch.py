@@ -5,7 +5,7 @@ from pathlib import Path
 
 from applet.translation_orchestrator import run_batch_translation_from_directory
 
-CONFIG_PATH = str(Path(__file__).resolve().parent / "config" / "preset_translation.json")
+CONFIG_PATH = str(Path(__file__).resolve().parent / "config" / "translation.yaml")
 INPUT_DIR = str(Path(__file__).resolve().parent)
 OUTPUT_DIR = str(Path(__file__).resolve().parent / "output")
 PATTERN = "playground/chunk_*.json"
