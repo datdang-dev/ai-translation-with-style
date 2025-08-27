@@ -210,17 +210,8 @@ class JobScheduler:
             self.logger.info("Job scheduler loop ended")
     
     async def _process_queue(self):
-        """Process pending jobs based on concurrency limits and timing"""
-        # Clean up completed tasks
-        completed_tasks = []
-        for job_id, task in self.running_jobs.items():
-            if task.done():
-                completed_tasks.append(job_id)
-        
-        for job_id in completed_tasks:
-            await self._handle_completed_job(job_id)
-        
-        # Start new jobs based on timing, not completion
+        """Process pending jobs based on timing ONLY - completely independent of completion"""
+        # Start new jobs based on timing, regardless of completion status
         current_time = time.time()
         jobs_to_start = []
         
@@ -234,14 +225,24 @@ class JobScheduler:
                 jobs_to_start.append(job_id)
                 # Remove from pending queue immediately
                 self.pending_queue.remove(job_id)
+                self.logger.info(f"⏰ Timer expired for {job_id}, starting now")
             else:
                 # Job is still waiting
                 job.status = JobStatus.WAITING
                 self.logger.debug(f"⏳ Job {job_id} waiting {wait_time:.1f}s more")
         
-        # Start all ready jobs (don't wait for completion)
+        # Start all ready jobs immediately (don't wait for anything)
         for job_id in jobs_to_start:
             await self._start_job(job_id)
+        
+        # Clean up completed tasks (separate from starting new jobs)
+        completed_tasks = []
+        for job_id, task in self.running_jobs.items():
+            if task.done():
+                completed_tasks.append(job_id)
+        
+        for job_id in completed_tasks:
+            await self._handle_completed_job(job_id)
     
     async def _start_job(self, job_id: str):
         """Start a specific job"""
@@ -249,11 +250,15 @@ class JobScheduler:
         job.status = JobStatus.RUNNING
         job.started_at = time.time()
         
+        # Calculate actual delay that occurred
+        actual_delay = job.started_at - job.created_at
+        expected_delay = job.delay
+        
         # Create and start task (no concurrency limit check)
         task = asyncio.create_task(self._execute_job(job))
         self.running_jobs[job_id] = task
         
-        self.logger.info(f"🏃 Job {job_id} started")
+        self.logger.info(f"🏃 Job {job_id} started (expected delay: {expected_delay:.1f}s, actual delay: {actual_delay:.1f}s)")
         self._log_queue_status()
     
     async def _execute_job(self, job: Job) -> Any:
