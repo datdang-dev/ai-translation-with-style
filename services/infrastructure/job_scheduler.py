@@ -44,10 +44,11 @@ class Job:
 
 
 class JobScheduler:
-    """Job scheduler with queue management and concurrency control"""
+    """Job scheduler with queue management and delay mechanism"""
     
-    def __init__(self, max_concurrent: int = 3, default_delay: float = 0.0):
-        self.max_concurrent = max_concurrent
+    def __init__(self, max_concurrent: int = None, default_delay: float = 0.0):
+        # max_concurrent is ignored for timer-based execution
+        self.max_concurrent = None  # No concurrency limit for timer-based jobs
         self.default_delay = default_delay
         self.logger = get_logger("JobScheduler")
         
@@ -144,7 +145,7 @@ class JobScheduler:
             'running_jobs': len(self.running_jobs),
             'completed_jobs': len(self.completed_jobs),
             'total_jobs': len(self.jobs),
-            'max_concurrent': self.max_concurrent,
+            'max_concurrent': 'unlimited',  # No concurrency limit for timer-based jobs
             'is_running': not self._shutdown,
             'pending_job_ids': self.pending_queue.copy(),
             'running_job_ids': list(self.running_jobs.keys())
