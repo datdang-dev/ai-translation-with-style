@@ -41,7 +41,7 @@ cache:
 
 # Processing configuration
 processing:
-  batch_size: 10
+  batch_size: 5  # Giảm batch size để phù hợp với provider limits
   max_concurrent: 3
   max_workers: 10
   job_delay: 0.1
