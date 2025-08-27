@@ -123,12 +123,13 @@ class ServiceFactory:
                 return None
             
             # Get preset configuration for this provider
-            preset_name = config.config.get('preset', 'preset_translation')
+            provider_config = config.config if isinstance(config.config, dict) else {}
+            preset_name = provider_config.get('preset', 'preset_translation')
             preset_config = self.config_manager.get_preset(preset_name)
             
             return OpenRouterClient(
                 api_key=api_key,
-                config=config.config,
+                config=provider_config,
                 preset_config=preset_config
             )
         
@@ -136,9 +137,10 @@ class ServiceFactory:
             api_key = api_keys.get('google_translate') or api_keys.get('google_api_key')
             # Google Translate can work without API key (free service)
             
+            provider_config = config.config if isinstance(config.config, dict) else {}
             return GoogleTranslateClient(
                 api_key=api_key,
-                config=config.config
+                config=provider_config
             )
         
         else:
