@@ -14,14 +14,14 @@ import copy
 class OpenRouterClient(BaseTranslationProvider):
     """Enhanced OpenRouter client with translation-specific interface"""
     
-    def __init__(self, api_key: str, base_url: str = None, config: Dict[str, Any] = None):
+    def __init__(self, api_key: str, base_url: str = None, config: Dict[str, Any] = None, preset_config: Dict[str, Any] = None):
         super().__init__("openrouter", config)
         self.api_key = api_key
         self.base_url = base_url or "https://openrouter.ai/api/v1/chat/completions"
         self.logger = get_logger("OpenRouterClient")
         
-        # Load preset translation config
-        self.preset_config = self._load_preset_config()
+        # Use provided preset config or load default
+        self.preset_config = preset_config or self._load_preset_config()
         
         # Default model and parameters from preset
         self.model = self.preset_config.get('model', 'google/gemini-2.0-flash-exp:free')
@@ -105,20 +105,18 @@ Input texts:
             return prompt
     
     def _build_payload(self, prompt: str) -> Dict[str, Any]:
-        """Build API request payload"""
-        # Check if prompt is a list of messages (preset) or string (simple)
+        """Build API request payload using preset configuration"""
+        # Base payload with model and messages
         if isinstance(prompt, list):
             # Preset messages format
-            return {
+            payload = {
                 "model": self.model,
                 "messages": prompt,
-                "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
                 "stream": True
             }
         else:
             # Simple prompt format
-            return {
+            payload = {
                 "model": self.model,
                 "messages": [
                     {
@@ -126,10 +124,35 @@ Input texts:
                         "content": prompt
                     }
                 ],
-                "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
                 "stream": True
             }
+        
+        # Add parameters from preset configuration
+        if 'max_tokens' in self.preset_config:
+            payload["max_tokens"] = self.preset_config['max_tokens']
+        elif hasattr(self, 'max_tokens'):
+            payload["max_tokens"] = self.max_tokens
+        
+        # Generation parameters from preset
+        payload["temperature"] = self.preset_config.get('temperature', self.temperature)
+        
+        # Optional parameters from preset
+        if 'presence_penalty' in self.preset_config:
+            payload["presence_penalty"] = self.preset_config['presence_penalty']
+        if 'frequency_penalty' in self.preset_config:
+            payload["frequency_penalty"] = self.preset_config['frequency_penalty']
+        if 'top_p' in self.preset_config:
+            payload["top_p"] = self.preset_config['top_p']
+        if 'top_k' in self.preset_config:
+            payload["top_k"] = self.preset_config['top_k']
+        if 'min_p' in self.preset_config:
+            payload["min_p"] = self.preset_config['min_p']
+        if 'top_a' in self.preset_config:
+            payload["top_a"] = self.preset_config['top_a']
+        if 'repetition_penalty' in self.preset_config:
+            payload["repetition_penalty"] = self.preset_config['repetition_penalty']
+        
+        return payload
     
     async def _send_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Send request to OpenRouter API with streaming support"""

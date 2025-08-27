@@ -122,9 +122,14 @@ class ServiceFactory:
                 self.logger.warning("OpenRouter API key not found, provider will not be available")
                 return None
             
+            # Get preset configuration for this provider
+            preset_name = config.config.get('preset', 'preset_translation')
+            preset_config = self.config_manager.get_preset(preset_name)
+            
             return OpenRouterClient(
                 api_key=api_key,
-                config=config.config
+                config=config.config,
+                preset_config=preset_config
             )
         
         elif name == 'google_translate':

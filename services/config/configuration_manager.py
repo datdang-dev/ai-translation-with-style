@@ -12,12 +12,13 @@ from services.models import (
     TranslationError
 )
 from services.common.logger import get_logger
+from .preset_loader import PresetLoader
 
 
 class ConfigurationManager:
     """Centralized configuration management with environment variable support"""
     
-    def __init__(self, config_path: str = None, env_prefix: str = "TRANSLATION_"):
+    def __init__(self, config_path: str = None, env_prefix: str = "TRANSLATION_", preset_dir: str = None):
         self.config_path = config_path or "config/translation.yaml"
         self.env_prefix = env_prefix
         self.logger = get_logger("ConfigurationManager")
@@ -25,6 +26,10 @@ class ConfigurationManager:
         # Configuration data
         self._config_data: Dict[str, Any] = {}
         self._env_overrides: Dict[str, Any] = {}
+        
+        # Preset loader for prompt configurations
+        preset_dir = preset_dir or str(Path(self.config_path).parent)
+        self.preset_loader = PresetLoader(preset_dir)
         
         # Load configuration
         self._load_configuration()
@@ -318,6 +323,22 @@ class ConfigurationManager:
             self.logger.error(f"Failed to export configuration: {e}")
             raise
     
+    def get_preset(self, preset_name: str) -> Dict[str, Any]:
+        """Get preset configuration for prompts and model parameters"""
+        return self.preset_loader.load_preset(preset_name)
+    
+    def list_available_presets(self) -> List[str]:
+        """List all available preset configurations"""
+        return self.preset_loader.list_available_presets()
+    
+    def reload_preset(self, preset_name: str) -> Dict[str, Any]:
+        """Reload a specific preset from disk"""
+        return self.preset_loader.reload_preset(preset_name)
+    
+    def get_preset_info(self, preset_name: str) -> Dict[str, Any]:
+        """Get information about a preset without loading it fully"""
+        return self.preset_loader.get_preset_info(preset_name)
+    
     def get_config_summary(self) -> Dict[str, Any]:
         """Get configuration summary for debugging"""
         return {
@@ -327,5 +348,6 @@ class ConfigurationManager:
             'env_overrides_count': len(self._env_overrides),
             'providers_configured': len(self.get_provider_configs()),
             'cache_enabled': self.get_cache_config().enabled,
-            'validation_passed': self.validate_config()
+            'validation_passed': self.validate_config(),
+            'available_presets': self.list_available_presets()
         }
