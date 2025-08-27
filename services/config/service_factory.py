@@ -174,7 +174,8 @@ class ServiceFactory:
                 request_manager=self.get_request_manager(),
                 resiliency_manager=self.get_resiliency_manager(),
                 batch_size=processing_config.get('batch_size', 10),
-                max_concurrent=processing_config.get('max_concurrent', 3)
+                max_concurrent=processing_config.get('max_concurrent', 3),
+                job_delay=processing_config.get('job_delay', 0.0)
             )
             
             self._instances['translation_manager'] = translation_manager
