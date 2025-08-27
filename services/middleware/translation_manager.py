@@ -111,10 +111,13 @@ class TranslationManager:
         """Process requests concurrently"""
         async def process_with_semaphore(request):
             async with self.semaphore:
+                # Create a wrapper function that matches the expected signature
+                async def process_request_wrapper(*args, **kwargs):
+                    return await self.request_manager.process_request(request)
+                
                 return await self.resiliency_manager.execute_with_retry(
-                    self.request_manager.process_request,
-                    "request_manager",
-                    request
+                    process_request_wrapper,
+                    "request_manager"
                 )
         
         tasks = [process_with_semaphore(request) for request in requests]
@@ -287,11 +290,14 @@ class TranslationManager:
         
         start_time = time.time()
         
+        # Create a wrapper function that matches the expected signature
+        async def process_request_wrapper(*args, **kwargs):
+            return await self.request_manager.process_request(request)
+        
         # Use resiliency manager for the actual translation
         result = await self.resiliency_manager.execute_with_retry(
-            func=self.request_manager.process_request,
-            args=(request,),
-            operation_name="request_manager"
+            func=process_request_wrapper,
+            provider="request_manager"
         )
         
         processing_time = time.time() - start_time
