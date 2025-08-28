@@ -3,6 +3,7 @@ from typing import Dict, Optional, Tuple
 
 from services.common import error_codes
 from services.key_manager.key_manager import APIKeyManager
+from services.request_handler.retry import DefaultRetryPolicy, ExponentialBackoff
 
 DEBUG_MODE = False
 
@@ -13,6 +14,10 @@ class RequestHandler:
         self.logger = logger
         self.config = config
         self.retry_count = 0
+        # Compose retry policy to mirror legacy behavior
+        self._retry_policy = DefaultRetryPolicy(
+            ExponentialBackoff(self.config.get("backoff_base", 2.0))
+        )
 
     async def handle_request(self, data: Dict) -> Tuple[int, Optional[Dict]]:
         """
@@ -32,7 +37,8 @@ class RequestHandler:
                 prompt_log += f"[{msg['role'].upper()}] {msg['content']}\n"
             self.logger.info(prompt_log)
 
-        while self.retry_count <= self.config.get("max_retries", 3):
+        max_retries = self.config.get("max_retries", 3)
+        while self._retry_policy.should_retry(self.retry_count, max_retries):
             try:
                 # Send request and receive response as dict
                 response = await self.api_client.send_request(data)
@@ -48,11 +54,11 @@ class RequestHandler:
                     self.logger.error(f"Exception attributes: {e.__dict__}")
                 
                 self.retry_count += 1
-                if self.retry_count > self.config.get("max_retries", 3):
+                if not self._retry_policy.should_retry(self.retry_count, max_retries):
                     self.logger.error(f"Max retries exceeded ({self.retry_count} attempts)")
                     return error_codes.ERR_RETRY_MAX_EXCEEDED, None
-                backoff = self.config.get("backoff_base", 2.0) ** self.retry_count
+                backoff = self._retry_policy.backoff.compute_delay_seconds(self.retry_count)
                 self.logger.info(f"Retrying in {backoff:.1f}s (attempt {self.retry_count})")
-                await asyncio.sleep(backoff)
+                await self._retry_policy.wait_before_retry(self.retry_count)
 
         return error_codes.ERR_RETRY_MAX_EXCEEDED, None
