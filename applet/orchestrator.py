@@ -7,6 +7,7 @@ from services.request_handler.request_handler import RequestHandler
 from services.common.api_client import OpenRouterClient
 from services.common.logger import get_logger
 from services.common.error_codes import ERR_NONE
+from services.common.config import ConfigLoader
 
 class TranslationOrchestrator:
     def __init__(self, config_path: str):
@@ -25,8 +26,7 @@ class TranslationOrchestrator:
     def _load_config(self) -> Dict[str, Any]:
         """Load preset configuration file"""
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            return ConfigLoader.load(self.config_path)
         except Exception as e:
             self.logger.error(f"Failed to read configuration file: {e}")
             raise
