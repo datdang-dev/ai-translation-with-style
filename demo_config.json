@@ -1,0 +1,41 @@
+{
+    "api_url": "https://openrouter.ai/api/v1/chat/completions",
+    "model": "anthropic/claude-3.5-sonnet",
+    "max_retries": 3,
+    "backoff_base": 2.0,
+    "max_backoff_delay": 300.0,
+    "backoff_type": "jittered",
+    "max_requests_per_minute": 20,
+    "timeout": 30,
+    "api_keys_file": "config/api_keys_demo.json",
+    "client_type": "mock",
+    
+    "batch": {
+        "max_concurrent": 3,
+        "job_delay": 1.0,
+        "queue_size": 100
+    },
+    
+    "circuit_breaker": {
+        "api_client": {
+            "failure_threshold": 5,
+            "recovery_timeout": 60.0,
+            "success_threshold": 2,
+            "timeout": 30.0
+        }
+    },
+    
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a professional translator. Translate the following text to Vietnamese, maintaining the original tone and meaning."
+        },
+        {
+            "role": "user", 
+            "content": "Please translate this text: {text}"
+        }
+    ],
+    
+    "temperature": 0.3,
+    "max_tokens": 2000
+}
