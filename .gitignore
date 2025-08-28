@@ -55,4 +55,4 @@ testing_playground/
 .venv/
 .vscode/
 *cache*
-*.json
+*output*
