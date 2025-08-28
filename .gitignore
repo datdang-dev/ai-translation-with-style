@@ -56,3 +56,6 @@ testing_playground/
 .vscode/
 *cache*
 *output*
+
+# API keys (sensitive)
+config/api_keys.json
