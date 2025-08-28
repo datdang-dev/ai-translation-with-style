@@ -21,26 +21,23 @@ class TranslationManager:
     def __init__(self, 
                  request_manager: RequestManager = None,
                  resiliency_manager: ResiliencyManager = None,
-                 batch_size: int = 10,
                  max_concurrent: int = 3,
-                 job_delay: float = 0.0):
+                 job_delay: float = 2.0,
+                 batch_size: int = 10):
         
         self.request_manager = request_manager or RequestManager()
         self.resiliency_manager = resiliency_manager or ResiliencyManager()
-        self.batch_size = batch_size
         self.max_concurrent = max_concurrent
         self.job_delay = job_delay
+        self.batch_size = batch_size
         
-        # Initialize job scheduler
-        self.job_scheduler = JobScheduler(
-            max_concurrent=max_concurrent,
-            default_delay=job_delay
-        )
+        # Initialize job scheduler with no concurrency limit for timer-based execution
+        self.job_scheduler = JobScheduler(max_concurrent=None, default_delay=job_delay)
+        
+        # No semaphore needed for timer-based execution
+        # self.semaphore = asyncio.Semaphore(max_concurrent)
         
         self.logger = get_logger("TranslationManager")
-        
-        # Concurrency control
-        self.semaphore = asyncio.Semaphore(max_concurrent)
         
         # Processing statistics
         self.batch_stats = {
@@ -110,12 +107,17 @@ class TranslationManager:
     async def _process_concurrent_batch(self, requests: List[TranslationRequest]) -> List[TranslationResult]:
         """Process requests concurrently"""
         async def process_with_semaphore(request):
-            async with self.semaphore:
-                return await self.resiliency_manager.execute_with_retry(
-                    self.request_manager.process_request,
-                    "request_manager",
-                    request
-                )
+            # No semaphore needed for timer-based execution
+            # async with self.semaphore:
+            
+            # Create a wrapper function that matches the expected signature
+            async def process_request_wrapper(*args, **kwargs):
+                return await self.request_manager.process_request(request)
+            
+            return await self.resiliency_manager.execute_with_retry(
+                process_request_wrapper,
+                "request_manager"
+            )
         
         tasks = [process_with_semaphore(request) for request in requests]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -287,11 +289,14 @@ class TranslationManager:
         
         start_time = time.time()
         
+        # Create a wrapper function that matches the expected signature
+        async def process_request_wrapper(*args, **kwargs):
+            return await self.request_manager.process_request(request)
+        
         # Use resiliency manager for the actual translation
         result = await self.resiliency_manager.execute_with_retry(
-            func=self.request_manager.process_request,
-            args=(request,),
-            operation_name="request_manager"
+            func=process_request_wrapper,
+            provider="request_manager"
         )
         
         processing_time = time.time() - start_time
@@ -403,35 +408,39 @@ class TranslationManager:
         
         return batch_result
     
-    def update_configuration(self, max_concurrent: int = None, job_delay: float = None):
+    async def update_configuration(self, 
+                                 max_concurrent: int = None,
+                                 job_delay: float = None,
+                                 batch_size: int = None):
         """Update configuration parameters"""
-        if max_concurrent is not None:
-            old_concurrent = self.max_concurrent
-            self.max_concurrent = max_concurrent
-            self.semaphore = asyncio.Semaphore(max_concurrent)
-            self.job_scheduler.update_max_concurrent(max_concurrent)
-            self.logger.info(f"Updated max_concurrent from {old_concurrent} to {max_concurrent}")
-        
         if job_delay is not None:
             old_delay = self.job_delay
             self.job_delay = job_delay
+            self.job_scheduler.default_delay = job_delay
             self.logger.info(f"Updated job_delay from {old_delay} to {job_delay}")
+        
+        if batch_size is not None:
+            old_batch_size = self.batch_size
+            self.batch_size = batch_size
+            self.logger.info(f"Updated batch_size from {old_batch_size} to {batch_size}")
+        
+        # max_concurrent is no longer used for timer-based execution
+        # if max_concurrent is not None:
+        #     old_concurrent = self.max_concurrent
+        #     self.max_concurrent = max_concurrent
+        #     self.semaphore = asyncio.Semaphore(max_concurrent)
+        #     self.job_scheduler.update_max_concurrent(max_concurrent)
+        #     self.logger.info(f"Updated max concurrent from {old_concurrent} to {max_concurrent}")
     
     def get_status(self) -> Dict[str, Any]:
         """Get current manager status"""
-        pipeline_health = self.request_manager.get_pipeline_health()
-        processing_stats = self.request_manager.get_processing_stats()
-        
         return {
-            'healthy': pipeline_health['overall_healthy'],
-            'pipeline_health': pipeline_health,
-            'processing_stats': processing_stats,
-            'batch_stats': self.batch_stats,
-            'configuration': {
-                'batch_size': self.batch_size,
-                'max_concurrent': self.max_concurrent
-            },
-            'available_providers': pipeline_health['available_providers']
+            'is_running': not self._shutdown,
+            'job_delay': self.job_delay,
+            'batch_size': self.batch_size,
+            'max_concurrent': 'unlimited',  # No concurrency limit for timer-based execution
+            'job_scheduler_status': self.job_scheduler.get_queue_status(),
+            'batch_stats': self.batch_stats.copy()
         }
     
     async def shutdown(self):

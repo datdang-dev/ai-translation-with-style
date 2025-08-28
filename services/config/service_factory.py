@@ -42,7 +42,13 @@ class ServiceFactory:
             cache_config = self.config_manager.get_cache_config()
             
             if cache_config.enabled:
-                self._instances['cache_service'] = CacheService(cache_config)
+                # Convert CacheConfig to dict for CacheService
+                cache_dict = {
+                    'backend': cache_config.backend,
+                    'default_ttl': cache_config.ttl_seconds,
+                    'redis_url': cache_config.redis_url
+                }
+                self._instances['cache_service'] = CacheService(cache_dict)
                 self.logger.info(f"Created CacheService with {cache_config.backend} backend")
             else:
                 self._instances['cache_service'] = None
