@@ -1,6 +1,9 @@
 transformers
 requests
-aiohttp
+aiohttp>=3.8.0
+PyYAML>=6.0
+asyncio
+pathlib
 pytest
 pytest-mock
 pytest-cov
