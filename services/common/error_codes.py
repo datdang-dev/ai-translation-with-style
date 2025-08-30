@@ -5,21 +5,23 @@ Error codes for the translation service request handling module.
 # Success code
 ERR_NONE = 0
 
-# Error codes
-CHUNK_MALFORMED = 1001
-ERR_LIMITED_ALL_KEYS = 1002
-ERR_RETRY_MAX_EXCEEDED = 1003
-ERR_CONNECTION_FAILED = 1004
-ERR_SERVER_ERROR = 1005
-ERR_CLIENT_ERROR = 1006
+# Error codes for the translation framework
+ERR_RETRY_MAX_EXCEEDED = 1001
+ERR_VALIDATION_FAILED = 1002
+ERR_STANDARDIZATION_FAILED = 1003
+ERR_CONFIG_LOAD_FAILED = 1004
+ERR_KEY_MANAGEMENT_FAILED = 1005
+ERR_SCHEDULING_FAILED = 1006
+ERR_REQUEST_FAILED = 1007
 
 # Error messages
 ERROR_MESSAGES = {
     ERR_NONE: "Success",
-    CHUNK_MALFORMED: "Chunk is malformed",
-    ERR_LIMITED_ALL_KEYS: "All API keys are rate-limited/exhausted",
     ERR_RETRY_MAX_EXCEEDED: "Maximum retry attempts exceeded",
-    ERR_CONNECTION_FAILED: "Connection to API failed",
-    ERR_SERVER_ERROR: "API server error",
-    ERR_CLIENT_ERROR: "API client error"
+    ERR_VALIDATION_FAILED: "Validation failed",
+    ERR_STANDARDIZATION_FAILED: "Standardization failed",
+    ERR_CONFIG_LOAD_FAILED: "Configuration load failed",
+    ERR_KEY_MANAGEMENT_FAILED: "Key management failed",
+    ERR_SCHEDULING_FAILED: "Scheduling failed",
+    ERR_REQUEST_FAILED: "Request failed"
 }
