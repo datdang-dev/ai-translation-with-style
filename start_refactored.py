@@ -63,7 +63,8 @@ async def main():
         summary = await applet.translate_batch_from_directory(
             input_dir=input_dir,
             output_dir=output_dir,
-            pattern="chunk_*.json"
+            pattern="chunk_*.json",
+            job_delay=10.0  # 10-second delay between jobs to avoid API key limiting
         )
         
         # Display results
