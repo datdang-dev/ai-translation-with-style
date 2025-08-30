@@ -109,30 +109,37 @@ class TranslationApplet:
             return result
     
     async def translate_batch_from_directory(self, input_dir: str, output_dir: str, 
-                                          pattern: str = "chunk_*.json") -> Dict[str, Any]:
+                                          pattern: str = "chunk_*.json", job_delay: float = 10.0) -> Dict[str, Any]:
         """
-        Translate multiple files from directory using batch processing
+        Translate multiple files from directory using sequential processing
         :param input_dir: Input directory path
         :param output_dir: Output directory path
         :param pattern: File pattern to match
+        :param job_delay: Delay between jobs in seconds
         :return: Batch processing summary
         """
         try:
             self.logger.info(f"Starting batch translation from: {input_dir}")
+            self.logger.info(f"📁 Input directory: {input_dir}")
+            self.logger.info(f"📁 Output directory: {output_dir}")
+            self.logger.info(f"🔍 File pattern: {pattern}")
+            self.logger.info(f"⏱️  Job delay: {job_delay}s")
             
             # Use core manager for batch processing
             summary = await self.core_manager.process_batch_translation(
                 input_dir=input_dir,
                 output_dir=output_dir,
-                pattern=pattern
+                pattern=pattern,
+                job_delay=job_delay
             )
             
-            self.logger.info(f"Batch translation completed: {summary}")
             return summary
             
         except Exception as e:
             error_msg = f"Batch translation failed: {str(e)}"
             self.logger.error(error_msg)
+            import traceback
+            self.logger.error(f"📋 Full traceback: {traceback.format_exc()}")
             
             return {
                 "total_jobs": 0,

@@ -159,30 +159,65 @@ class CoreManager:
         try:
             self.logger.info(f"🔄 [EXECUTING] Translation job: {input_path} -> {output_path}")
             
+            # Log file information
+            input_file = Path(input_path)
+            if input_file.exists():
+                file_size = input_file.stat().st_size
+                self.logger.info(f"📄 Input file size: {file_size} bytes")
+            
             # Standardize input
+            self.logger.info("🔄 Standardizing input...")
             standardized_input = self.standardizer.standardize(input_path)
+            self.logger.info(f"📝 Standardized {len(standardized_input)} text chunks")
             
             # Prepare translation request
+            self.logger.info("🔄 Preparing translation request...")
             request_data = self._prepare_translation_request(standardized_input)
             
+            # Log request details
+            model = request_data.get("model", "unknown")
+            temperature = request_data.get("temperature", 1)
+            self.logger.info(f"🤖 Using model: {model} (temperature: {temperature})")
+            
             # Send request
+            self.logger.info("🔄 Sending translation request...")
             error_code, response = await self.request_manager.send_request(request_data)
             
             if error_code != ERR_NONE:
                 raise RuntimeError(f"Translation request failed with error code: {error_code}")
             
             # Validate response
+            self.logger.info("🔄 Validating response...")
             validated_response = self.validator.validate_and_raise(response)
+            
+            # Calculate quality metrics
+            quality_score = self._calculate_quality_score(validated_response, standardized_input)
+            confidence_level = self._calculate_confidence_level(validated_response)
+            issues_detected = self._detect_issues(validated_response, standardized_input)
+            recommendations = self._generate_recommendations(validated_response, standardized_input)
             
             # Save result
             self._save_translation_result(output_path, validated_response)
             
             self.logger.info(f"✅ [COMPLETED] Translation job: {input_path}")
-            return {"status": "success", "input_path": input_path, "output_path": output_path}
+            
+            result = {
+                "status": "success", 
+                "input_path": input_path, 
+                "output_path": output_path,
+                "quality_score": quality_score,
+                "confidence_level": confidence_level,
+                "issues_detected": issues_detected,
+                "recommendations": recommendations
+            }
+            
+            return result
             
         except Exception as e:
             error_msg = f"Translation job failed: {str(e)}"
             self.logger.error(f"❌ [FAILED] {error_msg}")
+            import traceback
+            self.logger.error(f"📋 Full traceback: {traceback.format_exc()}")
             return {"status": "failed", "input_path": input_path, "error": error_msg}
     
     def _prepare_translation_request(self, text_dict: Dict[str, str]) -> Dict[str, Any]:
@@ -255,12 +290,13 @@ class CoreManager:
             raise
     
     async def process_batch_translation(self, input_dir: str, output_dir: str, 
-                                      pattern: str = "*.json") -> Dict[str, Any]:
+                                      pattern: str = "*.json", job_delay: float = 10.0) -> Dict[str, Any]:
         """
-        Process batch translation from directory
+        Process batch translation from directory with sequential processing
         :param input_dir: Input directory path
         :param output_dir: Output directory path
-        :param input_pattern: File pattern to match
+        :param pattern: File pattern to match
+        :param job_delay: Delay between jobs in seconds
         :return: Batch processing summary
         """
         try:
@@ -276,6 +312,7 @@ class CoreManager:
             file_paths.sort(key=lambda x: self._extract_file_number(x.name))
             
             if not file_paths:
+                self.logger.warning(f"⚠️ No files found matching pattern: {pattern}")
                 return {
                     "total_jobs": 0,
                     "completed": 0,
@@ -284,44 +321,90 @@ class CoreManager:
                     "success_rate": 0.0
                 }
             
-            # Add jobs to scheduler
-            for i, file_path in enumerate(file_paths):
-                if file_path.is_file():
-                    output_file = output_path / file_path.name
-                    job_id = f"translation_{i+1}_{file_path.stem}"
+            self.logger.info(f"📋 Found {len(file_paths)} files to process")
+            
+            # Process files sequentially
+            completed = 0
+            failed = 0
+            
+            for i, file_path in enumerate(file_paths, 1):
+                if not file_path.is_file():
+                    continue
                     
-                    self.add_translation_job(job_id, str(file_path), str(output_file))
-            
-            # Start scheduler
-            await self.start_scheduler()
-            
-            # Wait for all jobs to complete
-            while True:
-                stats = self.job_scheduler.get_scheduler_stats()
-                if stats["total_runs"] >= len(file_paths):
-                    break
-                await asyncio.sleep(1)
-            
-            # Stop scheduler
-            await self.stop_scheduler()
+                output_file = output_path / file_path.name
+                
+                self.logger.info(f"🔄 Processing {i}/{len(file_paths)}: {file_path.name}")
+                
+                try:
+                    # Execute translation job
+                    result = await self._execute_translation_job(str(file_path), str(output_file))
+                    
+                    if result.get("status") == "success":
+                        completed += 1
+                        self.logger.info(f"✅ Success: {file_path.name}")
+                        
+                        # Log quality metrics if available
+                        if "quality_score" in result:
+                            self.logger.info(f"📊 Quality Score: {result['quality_score']:.2f}")
+                        if "confidence_level" in result:
+                            self.logger.info(f"🎯 Confidence Level: {result['confidence_level']}")
+                        if "issues_detected" in result and result["issues_detected"]:
+                            self.logger.warning(f"⚠️ Issues detected: {len(result['issues_detected'])}")
+                            for issue in result["issues_detected"]:
+                                self.logger.warning(f"   - {issue}")
+                        if "recommendations" in result and result["recommendations"]:
+                            self.logger.info(f"💡 Recommendations: {len(result['recommendations'])}")
+                            for rec in result["recommendations"]:
+                                self.logger.info(f"   - {rec}")
+                    else:
+                        failed += 1
+                        error_msg = result.get("error", "Unknown error")
+                        self.logger.error(f"❌ Failed: {file_path.name} - {error_msg}")
+                    
+                except Exception as e:
+                    failed += 1
+                    self.logger.error(f"❌ Error processing {file_path.name}: {e}")
+                    import traceback
+                    self.logger.error(f"📋 Full traceback: {traceback.format_exc()}")
+                
+                # Add delay between jobs (except for the last one)
+                if i < len(file_paths) and job_delay > 0:
+                    self.logger.info(f"⏱️ Waiting {job_delay}s before next job...")
+                    await asyncio.sleep(job_delay)
             
             # Calculate summary
             total_time = time.time() - start_time
-            scheduler_stats = self.job_scheduler.get_scheduler_stats()
+            total_jobs = len(file_paths)
+            success_rate = (completed / total_jobs) if total_jobs > 0 else 0.0
             
             summary = {
-                "total_jobs": len(file_paths),
-                "completed": scheduler_stats["total_successful"],
-                "failed": scheduler_stats["total_failed"],
+                "total_jobs": total_jobs,
+                "completed": completed,
+                "failed": failed,
                 "total_time": total_time,
-                "success_rate": scheduler_stats["overall_success_rate"] / 100
+                "success_rate": success_rate
             }
             
-            self.logger.info(f"Batch translation completed: {summary}")
+            self.logger.info("📊 BATCH PROCESSING COMPLETED")
+            self.logger.info(f"✅ Completed: {completed}")
+            self.logger.info(f"❌ Failed: {failed}")
+            self.logger.info(f"⏱️ Total time: {total_time:.2f}s")
+            self.logger.info(f"📈 Success rate: {success_rate:.1%}")
+            
+            if completed > 0:
+                self.logger.info(f"🎉 Successfully translated {completed} files!")
+                self.logger.info(f"📂 Check output in: {output_dir}")
+            elif total_jobs == 0:
+                self.logger.warning(f"⚠️ No files found matching pattern: {pattern}")
+            else:
+                self.logger.error(f"❌ No files were successfully translated")
+            
             return summary
             
         except Exception as e:
-            self.logger.error(f"Batch translation failed: {e}")
+            self.logger.error(f"❌ Batch translation failed: {e}")
+            import traceback
+            self.logger.error(f"📋 Full traceback: {traceback.format_exc()}")
             raise
     
     def _extract_file_number(self, filename: str) -> int:
@@ -329,6 +412,127 @@ class CoreManager:
         import re
         match = re.search(r'(\d+)', filename)
         return int(match.group(1)) if match else 0
+    
+    def _calculate_quality_score(self, response: Dict[str, Any], original_input: Dict[str, str]) -> float:
+        """Calculate quality score for translation"""
+        try:
+            # Simple quality scoring based on response structure
+            score = 0.0
+            
+            # Check if response has expected structure
+            if isinstance(response, dict) and response:
+                score += 0.3
+            
+            # Check if all original keys are present
+            if isinstance(response, dict):
+                original_keys = set(original_input.keys())
+                response_keys = set(response.keys())
+                key_coverage = len(original_keys.intersection(response_keys)) / len(original_keys) if original_keys else 0
+                score += key_coverage * 0.4
+            
+            # Check for non-empty values
+            if isinstance(response, dict):
+                non_empty_values = sum(1 for v in response.values() if v and str(v).strip())
+                total_values = len(response)
+                value_quality = non_empty_values / total_values if total_values > 0 else 0
+                score += value_quality * 0.3
+            
+            return min(score, 1.0)
+        except Exception:
+            return 0.5
+    
+    def _calculate_confidence_level(self, response: Dict[str, Any]) -> str:
+        """Calculate confidence level for translation"""
+        try:
+            if not isinstance(response, dict) or not response:
+                return "low"
+            
+            # Simple confidence calculation
+            non_empty_values = sum(1 for v in response.values() if v and str(v).strip())
+            total_values = len(response)
+            
+            if total_values == 0:
+                return "low"
+            
+            ratio = non_empty_values / total_values
+            
+            if ratio >= 0.9:
+                return "high"
+            elif ratio >= 0.7:
+                return "medium"
+            else:
+                return "low"
+        except Exception:
+            return "low"
+    
+    def _detect_issues(self, response: Dict[str, Any], original_input: Dict[str, str]) -> List[str]:
+        """Detect issues in translation response"""
+        issues = []
+        
+        try:
+            if not isinstance(response, dict):
+                issues.append("Response is not a dictionary")
+                return issues
+            
+            if not response:
+                issues.append("Response is empty")
+                return issues
+            
+            # Check for missing keys
+            if isinstance(original_input, dict):
+                original_keys = set(original_input.keys())
+                response_keys = set(response.keys())
+                missing_keys = original_keys - response_keys
+                if missing_keys:
+                    issues.append(f"Missing keys: {list(missing_keys)}")
+            
+            # Check for empty values
+            empty_values = [k for k, v in response.items() if not v or not str(v).strip()]
+            if empty_values:
+                issues.append(f"Empty values for keys: {empty_values}")
+            
+            # Check for very short translations
+            short_translations = [k for k, v in response.items() if v and len(str(v).strip()) < 3]
+            if short_translations:
+                issues.append(f"Very short translations for keys: {short_translations}")
+            
+        except Exception as e:
+            issues.append(f"Error during issue detection: {e}")
+        
+        return issues
+    
+    def _generate_recommendations(self, response: Dict[str, Any], original_input: Dict[str, str]) -> List[str]:
+        """Generate recommendations for translation improvement"""
+        recommendations = []
+        
+        try:
+            if not isinstance(response, dict) or not response:
+                recommendations.append("Review translation response structure")
+                return recommendations
+            
+            # Check response completeness
+            if isinstance(original_input, dict):
+                original_keys = set(original_input.keys())
+                response_keys = set(response.keys())
+                coverage = len(original_keys.intersection(response_keys)) / len(original_keys) if original_keys else 0
+                
+                if coverage < 0.8:
+                    recommendations.append(f"Improve key coverage (currently {coverage:.1%})")
+            
+            # Check for potential improvements
+            empty_count = sum(1 for v in response.values() if not v or not str(v).strip())
+            if empty_count > 0:
+                recommendations.append(f"Review {empty_count} empty translation values")
+            
+            # Check for consistency
+            if len(response) > 1:
+                avg_length = sum(len(str(v)) for v in response.values() if v) / len(response)
+                recommendations.append(f"Average translation length: {avg_length:.1f} characters")
+            
+        except Exception as e:
+            recommendations.append(f"Error during recommendation generation: {e}")
+        
+        return recommendations
     
     def get_system_status(self) -> Dict[str, Any]:
         """

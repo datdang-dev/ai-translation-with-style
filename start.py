@@ -11,7 +11,7 @@ import os
 # Add current directory to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from applet.batch_orchestrator import run_batch_translation_from_directory
+from applet import run_batch_translation_from_directory
 
 async def main():
     """Simple batch translation demo"""
